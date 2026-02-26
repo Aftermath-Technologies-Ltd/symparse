@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Caches
+.pytest_cache/
+~/.symparse_cache/
+
+# User Specified
+.github/copilot-instructions.md
