@@ -156,4 +156,4 @@ Pull requests are actively welcomed! Please read the tests architecture under `t
 Symparse is released under the MIT Open Source License. See the [LICENSE](LICENSE) file for more.
 
 ---
-*Built autonomously by Aftermath Technologies Ltd.*
+*Engineered by Aftermath Technologies Ltd. with human-in-the-loop AI assistance.*
