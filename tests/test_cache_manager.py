@@ -1,12 +1,9 @@
-import os
 import json
 import multiprocessing
-import pytest
-from pathlib import Path
 from symparse.cache_manager import CacheManager
 
 def test_cache_init_metadata(tmp_path):
-    cm = CacheManager(cache_dir=tmp_path)
+    CacheManager(cache_dir=tmp_path)
     meta_file = tmp_path / "metadata.json"
     assert meta_file.exists()
     

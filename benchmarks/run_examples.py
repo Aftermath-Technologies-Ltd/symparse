@@ -1,10 +1,8 @@
-import sys
 import time
 import json
 import random
 import subprocess
 import math
-from pathlib import Path
 
 # Schemas must be pre-created in examples/
 SCHEMAS = {
@@ -165,7 +163,7 @@ def run_benchmark(name, schema_path, logs_str, true_log_len):
     print(f"\\n======== {name.upper()} WARM CACHE (1000 elements) ========")
     print(f"Avg Wall Time: {avg_time:.2f}ms ± {std_dev:.2f}ms")
     print(f"Throughput: {1000 / (avg_time / 1000):.2f} ops/sec")
-    print(f"===========================================================\\n")
+    print("===========================================================\\n")
 
 if __name__ == "__main__":
     print("Generating logs (with random.seed(42))...")

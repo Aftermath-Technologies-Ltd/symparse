@@ -3,7 +3,7 @@ import json
 import logging
 import hashlib
 from pathlib import Path
-from typing import Optional, Any
+from typing import Optional
 import portalocker
 
 logger = logging.getLogger(__name__)
@@ -52,7 +52,8 @@ class CacheManager:
         dot = sum(a*b for a, b in zip(vec1, vec2))
         mag1 = math.sqrt(sum(a*a for a in vec1))
         mag2 = math.sqrt(sum(b*b for b in vec2))
-        if mag1 * mag2 == 0: return 0.0
+        if mag1 * mag2 == 0:
+            return 0.0
         return dot / (mag1 * mag2)
         
     def _get_embedding(self, text: str) -> list[float]:

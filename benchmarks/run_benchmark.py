@@ -1,9 +1,7 @@
-import sys
 import time
 import json
 import random
 import subprocess
-import os
 from pathlib import Path
 
 # Provide a sample schema for an Apache Access Log
@@ -99,11 +97,11 @@ def extract(text):
     import math
     std_dev = math.sqrt(variance)
     
-    print(f"\n======== WARM CACHE BENCHMARK (1000 lines) ========")
+    print("\n======== WARM CACHE BENCHMARK (1000 lines) ========")
     print(f"Average total wall time: {avg_time:.2f}ms ± {std_dev:.2f}ms")
     print(f"Min: {min_time:.2f}ms, Max: {max_time:.2f}ms")
     print(f"Lines processed per second: {1000 / (avg_time / 1000):.2f} ops/sec")
-    print(f"===================================================")
+    print("===================================================")
     
     schema_path.unlink()
 

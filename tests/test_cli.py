@@ -1,12 +1,11 @@
 import pytest
-from unittest.mock import patch
+from unittest.mock import patch, mock_open
 import sys
 import io
 from symparse.cli import main
 
 def test_cli_cache_list_clear(monkeypatch, capsys):
     from symparse.cli import main
-    import json
     
     # We can mock CacheManager.list_cache and clear_cache
     class DummyCache:
@@ -59,9 +58,6 @@ def test_run_command_no_stdin(capsys):
     captured = capsys.readouterr()
     assert "Error: No data piped into stdin." in captured.err
 
-
-
-from unittest.mock import mock_open
 
 def test_run_command_success(capsys):
     test_args = ["symparse", "run", "--schema", "dummy.json", "--compile"]

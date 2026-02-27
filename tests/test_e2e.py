@@ -2,7 +2,6 @@ import pytest
 import os
 import json
 import portalocker
-from pathlib import Path
 
 from symparse.engine import process_stream
 from symparse.cache_manager import CacheManager
@@ -44,7 +43,7 @@ def test_fallback_corrupted_script(tmp_path, monkeypatch):
         
     try:
         # Fallback path runs AIClient...
-        result = process_stream("User ID is 42", SCHEMA, degradation_mode=os.getenv("SYMPARSE_DEGRADATION_MODE", "passthrough"))
+        process_stream("User ID is 42", SCHEMA, degradation_mode=os.getenv("SYMPARSE_DEGRADATION_MODE", "passthrough"))
         # If no local containerized LLM, we might fail here
     except (APIConnectionError, openai.NotFoundError):
         pytest.skip("No local LLM to execute fallback Cold Start constraint.")

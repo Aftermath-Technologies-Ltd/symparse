@@ -45,7 +45,7 @@ def test_enforce_schema_missing_property():
     assert "Schema violation: 'name' is a required property" in str(exc.value)
 
 def test_enforce_schema_invalid_schema():
-    data = {"name": "Alice"}
+    _data = {"name": "Alice"}
     # Schema must be valid jsonschema, here we omit for simplicity, but if the schema is totally broken:
     # `jsonschema.validate` might raise SchemaError instead of ValidationError, which we don't catch explicitly.
     # We will test an invalid schema to see what happens since jsonschema raises SchemaError on invalid schemas

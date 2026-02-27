@@ -1,6 +1,5 @@
 import pytest
-from symparse.ai_client import AIClient, ConfidenceDegradationError
-import litellm
+from symparse.ai_client import AIClient
 import os
 
 def test_ai_client_extract_success():

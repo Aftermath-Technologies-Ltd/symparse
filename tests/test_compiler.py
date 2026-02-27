@@ -1,7 +1,4 @@
 import pytest
-import os
-import json
-import re2
 from symparse.compiler import generate_script, execute_script, CompilationFailedError
 
 def test_generate_script_success(monkeypatch):

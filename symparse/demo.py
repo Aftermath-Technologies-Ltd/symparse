@@ -1,6 +1,5 @@
 import time
 import sys
-import subprocess
 
 def type_text(text, speed=0.03, newline=True):
     for char in text:

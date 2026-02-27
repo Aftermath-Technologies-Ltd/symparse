@@ -1,9 +1,5 @@
-import pytest
-import os
 import json
-from unittest.mock import patch
-from symparse.engine import process_stream, EngineFailure, GracefulDegradationMode
-from symparse.validator import SchemaViolationError
+from symparse.engine import process_stream
 from symparse.cache_manager import CacheManager
 
 def test_process_stream_fast_path(monkeypatch, tmp_path):

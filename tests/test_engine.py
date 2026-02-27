@@ -1,8 +1,5 @@
 import pytest
-import warnings
-from unittest.mock import patch
 from symparse.engine import process_stream, EngineFailure, GracefulDegradationMode
-from symparse.validator import SchemaViolationError
 
 def test_process_stream_success(monkeypatch):
     class MockAIClient:

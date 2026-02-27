@@ -2,7 +2,6 @@ import json
 import logging
 import ast
 import re2
-from typing import Any
 from symparse.ai_client import AIClient
 
 logger = logging.getLogger(__name__)
