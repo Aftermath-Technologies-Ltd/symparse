@@ -58,14 +58,38 @@ class CacheManager:
         schema_json = json.dumps(schema_dict, sort_keys=True).encode("utf-8")
         return hashlib.sha256(schema_json).hexdigest()
 
+    @staticmethod
+    def _normalize_for_similarity(text: str) -> str:
+        """
+        Structural normalization: replace variable content (IPs, dates, numbers,
+        URLs, emails) with canonical tokens so that structurally identical log
+        lines compare as highly similar even when their data differs.
+        """
+        import re
+        t = text
+        # IP addresses → <IP>
+        t = re.sub(r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}', '<IP>', t)
+        # Timestamps like 14/Feb/2025:14:32:01 or ISO-8601 variants
+        t = re.sub(r'\d{1,2}/\w{3}/\d{4}:\d{2}:\d{2}:\d{2}\s*[+\-]?\d{4}', '<TS>', t)
+        t = re.sub(r'\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}[^\s]*', '<TS>', t)
+        # Email addresses → <EMAIL>
+        t = re.sub(r'[\w.+-]+@[\w.-]+\.\w+', '<EMAIL>', t)
+        # URL paths → <PATH>
+        t = re.sub(r'/[\w./\-_%~]*', '<PATH>', t)
+        # Remaining multi-digit numbers → <NUM>
+        t = re.sub(r'\b\d{2,}\b', '<NUM>', t)
+        return t
+
     def _semantic_similarity(self, text1: str, text2: str) -> float:
         """
         Tier 2: Fast-vector semantic similarity.
-        Placeholder implementation using basic Jaccard similarity for Contrastive Collision Detection.
-        Actual semantic vectors can be plugged here natively.
+        Applies structural normalization before Jaccard to handle log lines with
+        identical formats but varying data (IPs, timestamps, URLs, etc.).
         """
-        set1 = set(text1.lower().split())
-        set2 = set(text2.lower().split())
+        n1 = self._normalize_for_similarity(text1)
+        n2 = self._normalize_for_similarity(text2)
+        set1 = set(n1.lower().split())
+        set2 = set(n2.lower().split())
         if not set1 or not set2:
             return 0.0
         return len(set1.intersection(set2)) / float(len(set1.union(set2)))

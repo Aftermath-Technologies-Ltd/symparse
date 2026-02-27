@@ -94,11 +94,14 @@ def process_stream(
             # Pass to validator
             enforce_schema(extracted_json, schema_dict)
             
-            # Auto-compiler logic
+            # Auto-compiler logic (non-fatal: compilation failure should not block returning valid extraction)
             if compile:
                 logger.info("Compiling extraction to local python script cache")
-                generated_script = generate_script(input_text, schema_dict, extracted_json)
-                cache_manager.save_script(schema_dict, input_text, generated_script, use_embeddings)
+                try:
+                    generated_script = generate_script(input_text, schema_dict, extracted_json)
+                    cache_manager.save_script(schema_dict, input_text, generated_script, use_embeddings)
+                except Exception as compile_err:
+                    logger.warning(f"Compilation failed (non-fatal, extraction still valid): {compile_err}")
                 
             global_stats.ai_path_hits += 1
             global_stats.total_latency_ms += (time.time() - start_time) * 1000

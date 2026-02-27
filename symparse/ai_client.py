@@ -30,7 +30,7 @@ class AIClient:
         
         # For litellm, we specify providers in the model name (e.g., openai/gpt-4o, ollama/gemma3:1b)
         # We assume if someone was relying on old fallback it meant an openai compatible proxy
-        self.model = model or os.getenv("SYMPARSE_AI_MODEL") or ai_config.get("model", "ollama/gemma3:1b")
+        self.model = model or os.getenv("SYMPARSE_AI_MODEL") or ai_config.get("model", "ollama/gemma3:4b")
         
         if logprob_threshold is not None:
             self.logprob_threshold = logprob_threshold
@@ -46,24 +46,58 @@ class AIClient:
         Handles LLM extraction enforcing structured generation.
         Implements a Confidence Egress Gate using token logprobs.
         """
+        # Build a concrete example showing the model what output shape to produce
+        def _build_example(props: dict) -> dict:
+            """Recursively build example object from schema properties."""
+            obj = {}
+            for key, prop in props.items():
+                ptype = prop.get("type", "string")
+                if ptype == "string":
+                    obj[key] = f"<extracted {key}>"
+                elif ptype == "number":
+                    obj[key] = 0
+                elif ptype == "integer":
+                    obj[key] = 0
+                elif ptype == "boolean":
+                    obj[key] = False
+                elif ptype == "array":
+                    items_schema = prop.get("items", {})
+                    if items_schema.get("type") == "object" and "properties" in items_schema:
+                        obj[key] = [_build_example(items_schema["properties"])]
+                    else:
+                        obj[key] = [f"<extracted {key} item>"]
+                elif ptype == "object" and "properties" in prop:
+                    obj[key] = _build_example(prop["properties"])
+                elif ptype == "object":
+                    obj[key] = {}
+                else:
+                    obj[key] = f"<extracted {key}>"
+            return obj
+
+        properties = schema.get("properties", {})
+        example_obj = _build_example(properties)
+        
+        required_fields = schema.get("required", list(properties.keys()))
+        field_list = ", ".join(f'"{f}"' for f in required_fields)
+        example_output = json.dumps(example_obj, indent=2)
+        
         kwargs = {
             "model": self.model,
             "messages": [
-                {"role": "system", "content": "You are a perfectly rigid data extraction tool. Extract ONLY matching data into the required JSON schema structure."},
-                {"role": "user", "content": f"Extract structured data from the following text:\n\n{text}"}
+                {"role": "system", "content": "You are a data extraction tool. Given raw text, extract values into a JSON object. Respond with ONLY the JSON object. No schema definitions, no markdown, no explanation."},
+                {"role": "user", "content": (
+                    f"Extract the following fields from the text below: {field_list}\n\n"
+                    f"Return a JSON object like this example:\n{example_output}\n\n"
+                    f"Text to extract from:\n{text}\n\n"
+                    f"Respond with ONLY the JSON object containing the extracted values:"
+                )}
             ],
-            "response_format": {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "extraction_schema",
-                    "schema": schema,
-                    "strict": True
-                }
-            },
             "temperature": 0.0,
             "max_tokens": self.max_tokens,
+            # drop_params silently drops logprobs/top_logprobs for providers that don't support them
             "logprobs": True,
-            "top_logprobs": 1
+            "top_logprobs": 1,
+            "drop_params": True
         }
         
         if self.base_url:
@@ -80,6 +114,19 @@ class AIClient:
         choice = response.choices[0]
         # Some litellm providers might return dicts differently, fallback safely
         raw_json = choice.message.content if hasattr(choice.message, 'content') else choice.get("message", {}).get("content", "{}")
+        
+        # Strip markdown code fences that some models wrap around JSON output
+        if raw_json:
+            raw_json = raw_json.strip()
+            if raw_json.startswith("```"):
+                # Remove opening fence (```json or ```)
+                first_newline = raw_json.find("\n")
+                if first_newline != -1:
+                    raw_json = raw_json[first_newline + 1:]
+                # Remove closing fence
+                if raw_json.endswith("```"):
+                    raw_json = raw_json[:-3]
+                raw_json = raw_json.strip()
         
         # Confidence Egress Gate
         if hasattr(choice, 'logprobs') and choice.logprobs and hasattr(choice.logprobs, 'content') and choice.logprobs.content:

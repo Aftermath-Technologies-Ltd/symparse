@@ -2,6 +2,12 @@ import argparse
 import sys
 import json
 import logging
+import warnings
+
+# Suppress harmless pydantic/litellm serialization warnings that pollute stderr
+warnings.filterwarnings("ignore", message="Pydantic serializer warnings")
+warnings.filterwarnings("ignore", category=DeprecationWarning, module="litellm")
+warnings.filterwarnings("ignore", category=DeprecationWarning, module="httpx")
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Symparse: LLM to Fast-Path Regex Compiler pipeline")

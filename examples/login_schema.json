@@ -1,0 +1,16 @@
+{
+    "title": "Login Event",
+    "type": "object",
+    "properties": {
+        "email": {
+            "type": "string"
+        },
+        "ip_address": {
+            "type": "string"
+        }
+    },
+    "required": [
+        "email",
+        "ip_address"
+    ]
+}

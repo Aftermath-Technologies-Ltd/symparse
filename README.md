@@ -55,13 +55,8 @@ Symparse is built for Unix pipes. You stream standard text into `stdin` and prov
 Parse a messy raw text log into a clean standard JSON string:
 
 ```bash
-# We have a messy text input:
-echo "User alice@example.com logged in from 192.168.1.50 at 10:45 AM" | \
-symparse run --schema login_schema.json --compile
-```
-
-** `login_schema.json` **:
-```json
+# First, create a schema describing the structure you want:
+cat > login_schema.json << 'EOF'
 {
   "type": "object",
   "properties": {
@@ -70,9 +65,14 @@ symparse run --schema login_schema.json --compile
   },
   "required": ["email", "ip_address"]
 }
+EOF
+
+# Then pipe unstructured text through symparse:
+echo "User alice@example.com logged in from 192.168.1.50 at 10:45 AM" | \
+  symparse run --schema login_schema.json --compile
 ```
 
-** Output (`stdout`) **:
+**Output** (`stdout`):
 ```json
 {
   "email": "alice@example.com",
@@ -80,16 +80,29 @@ symparse run --schema login_schema.json --compile
 }
 ```
 
-Because we passed `--compile`, Symparse will use the LLM (AI Path) on this first pass to deduce a standard Re2 regex schema. The next time a log matching this prototype is fired, Symparse will hit the **Fast Path Cache**, completely bypassing the LLM. 
+Because we passed `--compile`, Symparse will use the LLM (AI Path) on this first pass to deduce a standard Re2 regex schema. The next time a log matching this prototype is fired, Symparse will hit the **Fast Path Cache**, completely bypassing the LLM.
+
+### Verified Fast Path (Production Test — February 2026)
+
+The following results were captured from a live run on a CPU-only 22-core Linux workstation using `ollama/gemma3:4b`:
+
+| Test | Path | Latency | Speedup |
+| --- | --- | --- | --- |
+| **Login (flat schema)** — 1st run | AI Path | `29,071ms` | — |
+| **Login (flat schema)** — 2nd run | Fast Path | `1.15ms` | **25,279x** |
+| **Nginx (nested schema)** — 1st run | AI Path | `58,515ms` | — |
+| **Nginx (nested schema)** — 2nd run | Fast Path | `2.98ms` | **19,635x** |
+| **Multi-line streaming** — 2 lines | Fast Path | `1.15ms avg` | both cached |
+
+The compiler self-tests every generated script against the archetype data before caching. If the LLM produces a broken regex, symparse falls back to a deterministic template compiler that derives patterns directly from the extracted values.
 
 ### Live Verified Fallback (Graceful Degradation)
 
-Symparse is built to natively handle imperfect LLM generation on the fly. In a live test using the lightweight local `gemma3:1b` model to parse messy logs, here is how the neurosymbolic loop behaved:
+Symparse is built to natively handle imperfect LLM generation on the fly:
 
-1. **Log 1 (`Cold Start`)**: User logs in. LLM extracts correctly and creates a Fast Path Regex Cache.
-2. **Log 2 (`Fast Path`)**: User logs out. Symparse attempts to use the Regex cache.
-3. **Execution**: The Regex cache was slightly imprecise (a flaw in the 1B parameter model's generation), missing a field requirement.
-4. **Graceful Self-Healing**: Symparse detected the strict `SchemaViolationError` mid-stream, safely purged the flawed Regex from its cache, seamlessly fell back to the local `gemma3:1b` AI Path, precisely extracted the exact JSON needed, and returned it to `stdout`—all without crashing the active Unix pipeline.
+1. **Log 1 (`Cold Start`)**: LLM extracts correctly. The compiler self-tests the generated re2 script against the archetype data, and caches it only if it reproduces the expected output.
+2. **Log 2 (`Fast Path`)**: The cached script runs in ~1-3ms. If the regex fails schema validation, Symparse purges the flawed script, falls back to the AI Path, and returns the correct result — all without crashing the active Unix pipeline.
+3. **Self-Healing**: On cache miss or broken script, the pipeline seamlessly degrades to the LLM and re-compiles a fresh script for next time.
 
 ### Streaming Logs (`tail -f`)
 

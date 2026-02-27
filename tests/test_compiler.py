@@ -1,16 +1,26 @@
 import pytest
+from unittest.mock import MagicMock
 from symparse.compiler import generate_script, execute_script, CompilationFailedError
+
+def _mock_completion_response(content):
+    """Create a mock litellm completion response."""
+    mock_response = MagicMock()
+    mock_response.choices = [MagicMock()]
+    mock_response.choices[0].message.content = content
+    return mock_response
 
 def test_generate_script_success(monkeypatch):
     class MockAIClient:
         def __init__(self, *args, **kwargs):
-            pass
-        def extract(self, prompt, schema):
-            return {
-                "script_code": "import re2\ndef extract(text):\n    return {'name': 'Alice', 'age': 30}"
-            }
+            self.model = "test-model"
+            self.base_url = None
+            self.api_key = None
+            self.max_tokens = 4000
             
     monkeypatch.setattr('symparse.compiler.AIClient', MockAIClient)
+    monkeypatch.setattr('symparse.compiler.completion', lambda **kwargs: _mock_completion_response(
+        "import re2\ndef extract(text):\n    return {'name': 'Alice', 'age': 30}"
+    ))
     
     schema = {"type": "object", "properties": {"name": {"type": "string"}, "age": {"type": "integer"}}}
     text = "My name is Alice and I am 30 years old."
@@ -24,19 +34,22 @@ def test_generate_script_success(monkeypatch):
 def test_generate_script_invalid_python(monkeypatch):
     class MockAIClient:
         def __init__(self, *args, **kwargs):
-            pass
-        def extract(self, prompt, schema):
-            return {
-                "script_code": "def extract(text) return {" # SyntaxError
-            }
+            self.model = "test-model"
+            self.base_url = None
+            self.api_key = None
+            self.max_tokens = 4000
             
     monkeypatch.setattr('symparse.compiler.AIClient', MockAIClient)
+    monkeypatch.setattr('symparse.compiler.completion', lambda **kwargs: _mock_completion_response(
+        "def extract(text) return {"  # SyntaxError
+    ))
     
     schema = {"type": "object"}
     
     with pytest.raises(CompilationFailedError) as exc:
         generate_script("text", schema, {})
-    assert "not valid Python" in str(exc.value)
+    # LLM returns invalid Python → falls through to deterministic compiler → also fails
+    assert "failed" in str(exc.value).lower() or "no extractable" in str(exc.value).lower()
 
 def test_execute_script():
     script = """
