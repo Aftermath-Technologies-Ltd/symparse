@@ -47,3 +47,15 @@ data = {"status": "success"}
 # Returns True or raises SchemaViolationError
 enforce_schema(data, schema)
 ```
+
+### AI Client
+```python
+from symparse.ai_client import AIClient, ConfidenceDegradationError
+
+client = AIClient(base_url="http://localhost:11434/v1", model="llama3")
+
+try:
+    data = client.extract("raw text", schema)
+except ConfidenceDegradationError as e:
+    print("AI output passed strict schema but semantically degraded.")
+```
