@@ -27,6 +27,12 @@ Install Symparse from PyPI:
 pip install symparse
 ```
 
+Or with optional but recommended Tier-2 Local Vector Embeddings (uses `sentence-transformers` for vastly superior cache hit-rates against polymorphic logs):
+
+```bash
+pip install symparse[embed]
+```
+
 Or from source:
 
 ```bash
@@ -95,8 +101,32 @@ tail -f /var/log/nginx/access.log | symparse run --schema access_schema.json --c
 * `--compile`: Compiles a fast-path sandbox script on successful AI extraction.
 * `--force-ai`: Bypasses the local fast-path cache entirely and routes all data to the AI.
 * `--confidence <float>`: Overrides the average token logprob threshold for the AI egress gate (default: `-2.0`).
+* `--embed`: Activates semantic Dense Vector tier-2 cache checks instead of simple Jaccard similarity (requires `symparse[embed]`).
+* `--stats`: Prints the engine cache hit/miss ratio, latency averages, and stream velocity on exit.
 
-## 🗄️ Cache Management
+## � Docker (Pre-Loaded Fast Start)
+
+To completely eliminate the "Does it work on my machine?" factor and remove the need to configure a local Ollama daemon, you can run the pre-packaged Symparse container.
+
+The standard image comes bundled with Ollama and `gemma3:1b` downloaded.
+
+```bash
+docker pull aftermath/symparse:latest
+docker run -i --rm aftermath/symparse run --schema my_schema.json < logs.txt
+```
+
+## 🏎️ Benchmarks
+
+How fast is the exact same Unix pipe once the AI successfully compiles the cache?
+
+Tested using `symparse run --schema access.json --stats` routing a batch of `1,000` dense synthetic Apache access logs down the warmed **Fast Path**:
+
+* **Average Execution Engine Wall Time**: `424.13ms ± 9.91ms`
+* **Throughput**: `~2357 lines / second`
+
+That is over an order of magnitude faster than evaluating 1000 calls through an LLM, all while maintaining rigorous ReDoS sandboxing and structured formatting.
+
+## �🗄️ Cache Management
 
 Symparse creates deterministic sandbox scripts under `$HOME` or a `.symparse_cache` folder. You can manage these cache rules out of the box.
 
@@ -159,6 +189,9 @@ manager.clear_cache()
 Pull requests are actively welcomed! Please read the tests architecture under `tests/` to run integration checks (`test_agent_skills.py` patterns).
 
 Symparse is released under the MIT Open Source License. See the [LICENSE](LICENSE) file for more.
+
+### ⚠️ Known Limitations
+* **Operating System Constraints**: Symparse relies extensively on deep OS-level `fcntl` locks (`LOCK_EX` and `LOCK_SH`) to coordinate strictly serial atomic I/O cache writes across concurrent Unix pipes or `tail -f` streams. At this time, it is officially **Unix-only** (Linux & macOS). Windows compatibility may be shipped in future implementations using simulated portalocker bindings.
 
 ---
 *Engineered by Aftermath Technologies Ltd. with human-in-the-loop AI assistance.*

@@ -35,7 +35,8 @@ def process_stream(
     force_ai: bool = False,
     max_retries: int = 3,
     degradation_mode: GracefulDegradationMode = GracefulDegradationMode.HALT,
-    confidence_threshold: float = None
+    confidence_threshold: float = None,
+    use_embeddings: bool = False
 ) -> Dict[str, Any]:
     """
     Entry point handling routing logic. 
@@ -48,7 +49,7 @@ def process_stream(
     import time
     start_time = time.time()
     if not force_ai:
-        cached_script = cache_manager.fetch_script(schema_dict, input_text)
+        cached_script = cache_manager.fetch_script(schema_dict, input_text, use_embeddings)
         if cached_script:
             logger.info("Executing Fast Path via cached script")
             try:
@@ -82,9 +83,9 @@ def process_stream(
             
             # Auto-compiler logic
             if compile:
-                logger.info("Compiling extraction to local RE2 script cache")
+                logger.info("Compiling extraction to local python script cache")
                 generated_script = generate_script(input_text, schema_dict, extracted_json)
-                cache_manager.save_script(schema_dict, input_text, generated_script)
+                cache_manager.save_script(schema_dict, input_text, generated_script, use_embeddings)
                 
             global_stats.ai_path_hits += 1
             global_stats.total_latency_ms += (time.time() - start_time) * 1000

@@ -13,8 +13,10 @@ CACHE_DIR = Path.home() / ".symparse_cache"
 class CacheManager:
     def __init__(self, cache_dir: Path = CACHE_DIR):
         self.cache_dir = Path(cache_dir)
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        # Enforce highly secure user-only cache permissions to prevent exposing logs globally
+        self.cache_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
         self._init_metadata()
+        self._encoder = None
 
     def _init_metadata(self):
         """Ensure the global metadata file exists safely."""
@@ -44,8 +46,27 @@ class CacheManager:
         if not set1 or not set2:
             return 0.0
         return len(set1.intersection(set2)) / float(len(set1.union(set2)))
+        
+    def _cosine_similarity(self, vec1: list[float], vec2: list[float]) -> float:
+        import math
+        dot = sum(a*b for a, b in zip(vec1, vec2))
+        mag1 = math.sqrt(sum(a*a for a in vec1))
+        mag2 = math.sqrt(sum(b*b for b in vec2))
+        if mag1 * mag2 == 0: return 0.0
+        return dot / (mag1 * mag2)
+        
+    def _get_embedding(self, text: str) -> list[float]:
+        if self._encoder is None:
+            try:
+                from sentence_transformers import SentenceTransformer
+                # Use a widely available, tiny and fast model
+                self._encoder = SentenceTransformer("all-MiniLM-L6-v2")
+            except ImportError:
+                logger.warning("sentence-transformers not installed. Falling back to Jaccard similarity.")
+                return []
+        return self._encoder.encode(text).tolist()
 
-    def fetch_script(self, schema_dict: dict, text: str) -> Optional[str]:
+    def fetch_script(self, schema_dict: dict, text: str, use_embeddings: bool = False) -> Optional[str]:
         """
         Retrieves compiled fast path logic implementing Two-Tier Caching.
         Reads must be process-safe using shared locks.
@@ -66,12 +87,28 @@ class CacheManager:
         # Contrastive Collision Detection (Tier 2) check
         # We ensure the structure intended actually matches the semantic archetype of this script
         script_info = meta["schemas"][schema_hash]
-        example_text = script_info.get("archetype_text", "")
         
-        similarity = self._semantic_similarity(text, example_text)
-        if similarity < 0.2:  # Semantic similarity threshold
-            logger.warning(f"Tier 2 Collision Detected: Exact schema match but low semantic similarity ({similarity:.2f}). Bypassing script.")
-            return None
+        if use_embeddings and "archetype_vector" in script_info:
+            target_vec = self._get_embedding(text)
+            if target_vec:
+                similarity = self._cosine_similarity(target_vec, script_info["archetype_vector"])
+                logger.debug(f"Tier 2 Cosine Similarity: {similarity:.2f}")
+                if similarity < 0.6:  # Higher threshold for dense vectors
+                    logger.warning(f"Tier 2 Collision: Low semantic vector similarity ({similarity:.2f}). Bypassing script.")
+                    return None
+            else:
+                # Fallback if sentence-transformers import failed but flag was set
+                example_text = script_info.get("archetype_text", "")
+                similarity = self._semantic_similarity(text, example_text)
+                if similarity < 0.2:
+                    logger.warning(f"Tier 2 Collision Detected: Exact schema match but low semantic similarity ({similarity:.2f}). Bypassing script.")
+                    return None
+        else:
+            example_text = script_info.get("archetype_text", "")
+            similarity = self._semantic_similarity(text, example_text)
+            if similarity < 0.2:  # Semantic similarity threshold
+                logger.warning(f"Tier 2 Collision Detected: Exact schema match but low semantic similarity ({similarity:.2f}). Bypassing script.")
+                return None
             
         script_path = self.cache_dir / f"{schema_hash}.py"
         if script_path.exists():
@@ -84,7 +121,7 @@ class CacheManager:
                     
         return None
 
-    def save_script(self, schema_dict: dict, text: str, script_content: str):
+    def save_script(self, schema_dict: dict, text: str, script_content: str, use_embeddings: bool = False):
         """
         Saves a generated extraction script into the cache.
         Writes must be strictly serialized via fcntl exclusive locks.
@@ -113,10 +150,17 @@ class CacheManager:
                 meta = json.loads(content) if content else {"schemas": {}}
                 
                 meta.setdefault("schemas", {})
-                meta["schemas"][schema_hash] = {
+                schema_entry = {
                     "archetype_text": text,
                     "compiled": True
                 }
+                
+                if use_embeddings:
+                    vec = self._get_embedding(text)
+                    if vec:
+                        schema_entry["archetype_vector"] = vec
+                
+                meta["schemas"][schema_hash] = schema_entry
                 
                 f.seek(0)
                 f.truncate()
@@ -145,10 +189,13 @@ class CacheManager:
         for p in self.cache_dir.glob("*"):
             if p.is_file():
                 # Acquire exclusive lock on the file before unlinking to prevent racing
-                with open(p, "a") as f:
-                    fcntl.flock(f, fcntl.LOCK_EX)
-                    os.unlink(p)
-                    # File is unlinked, lock releases on close
+                try:
+                    with open(p, "a") as f:
+                        fcntl.flock(f, fcntl.LOCK_EX)
+                        os.unlink(p)
+                except FileNotFoundError:
+                    pass
+        self._init_metadata()
                     
     def delete_script(self, schema_dict: dict):
         """Deletes a cached script when the Fast Path fails validation."""
