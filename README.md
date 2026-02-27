@@ -94,6 +94,7 @@ tail -f /var/log/nginx/access.log | symparse run --schema access_schema.json --c
 * `--schema <path>`: **Required**. Path to the local JSON schema file to enforce.
 * `--compile`: Compiles a fast-path sandbox script on successful AI extraction.
 * `--force-ai`: Bypasses the local fast-path cache entirely and routes all data to the AI.
+* `--confidence <float>`: Overrides the average token logprob threshold for the AI egress gate (default: `-2.0`).
 
 ## 🗄️ Cache Management
 
