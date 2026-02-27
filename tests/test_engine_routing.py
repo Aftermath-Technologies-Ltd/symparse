@@ -12,7 +12,11 @@ def test_process_stream_fast_path(monkeypatch, tmp_path):
     
     # Pre-populate cache
     cm = CacheManager(cache_dir=tmp_path)
-    script = json.dumps({"name": "name is (.*?)$"})
+    script = """def extract(text):
+    import re2
+    match = re2.search(r'name is (.*?)$', text)
+    return {"name": match.group(1) if match else None}
+"""
     cm.save_script(schema, text, script)
     
     # Mock AI Client to fail if it gets called (proves Fast Path worked)

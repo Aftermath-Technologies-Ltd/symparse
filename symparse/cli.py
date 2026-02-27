@@ -1,18 +1,19 @@
 import argparse
 import sys
 import json
+import logging
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Symparse: LLM to Fast-Path Regex Compiler pipeline")
     
     try:
         from importlib.metadata import version
-        __version__ = version("symparse")
+        v = version("symparse")
     except Exception:
-        __version__ = "unknown"
+        v = "unknown"
         
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable debug logging")
-    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
+    parser.add_argument("--version", action="version", version=f"%(prog)s {v}")
     
     subparsers = parser.add_subparsers(dest="command", required=True)
     
@@ -37,8 +38,7 @@ def parse_args():
 def main():
     args = parse_args()
     
-    import logging
-    log_level = logging.DEBUG if args.verbose else logging.WARNING
+    log_level = logging.DEBUG if getattr(args, "verbose", False) else logging.ERROR
     logging.basicConfig(level=log_level, format="%(levelname)s: %(message)s")
     
     if args.command == "cache":
@@ -95,7 +95,14 @@ def main():
         if getattr(args, "stats", False):
             total_runs = global_stats.fast_path_hits + global_stats.ai_path_hits
             avg_latency = global_stats.total_latency_ms / total_runs if total_runs > 0 else 0.0
-            print(f"\n--- Symparse Run Stats (v{__version__}) ---", file=sys.stderr)
+            
+            try:
+                from importlib.metadata import version
+                v = version("symparse")
+            except Exception:
+                v = "unknown"
+                
+            print(f"\n--- Symparse Run Stats (v{v}) ---", file=sys.stderr)
             print(f"Fast Path Hits: {global_stats.fast_path_hits}", file=sys.stderr)
             print(f"AI Path Hits:   {global_stats.ai_path_hits}", file=sys.stderr)
             print(f"Average Latency: {avg_latency:.2f}ms", file=sys.stderr)

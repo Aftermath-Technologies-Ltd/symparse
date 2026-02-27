@@ -1,0 +1,23 @@
+{
+    "type": "object",
+    "properties": {
+        "timestamp": {
+            "type": "string"
+        },
+        "user_id": {
+            "type": "integer"
+        },
+        "action": {
+            "type": "string"
+        },
+        "status": {
+            "type": "string"
+        }
+    },
+    "required": [
+        "timestamp",
+        "user_id",
+        "action",
+        "status"
+    ]
+}

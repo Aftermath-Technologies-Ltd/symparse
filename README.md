@@ -6,12 +6,15 @@
   <p><strong>The AI <code>jq</code> for unstructured text. From 100% LLM latency to 95% regex speeds in one run.</strong></p>
 
   <p>
-    <a href="https://github.com/Aftermath-Technologies-Ltd/symparse/actions"><img src="https://img.shields.io/badge/build-passing-brightgreen?logo=github" alt="Build passing"></a>
-    <a href="https://pypi.org/project/symparse/"><img src="https://img.shields.io/pypi/v/symparse?color=blue&logo=python&logoColor=white" alt="PyPI"></a>
-    <a href="https://github.com/Aftermath-Technologies-Ltd/symparse/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-purple" alt="License: MIT"></a>
+    <a href="https://github.com/Aftermath-Technologies-Ltd/symparse/actions"><img src="https://github.com/Aftermath-Technologies-Ltd/symparse/actions/workflows/ci.yml/badge.svg" alt="CI/CD Status"></a>
+    <a href="https://pypi.org/project/symparse/"><img src="https://img.shields.io/pypi/v/symparse" alt="PyPI Version"></a>
+    <a href="https://hub.docker.com/r/aftermath/symparse"><img src="https://img.shields.io/docker/pulls/aftermath/symparse" alt="Docker Pulls"></a>
+    <a href="https://github.com/Aftermath-Technologies-Ltd/symparse/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Aftermath-Technologies-Ltd/symparse" alt="License: MIT"></a>
     <img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python 3.10+">
   </p>
 </div>
+
+*Note on Stability: Symparse utilizes `litellm` to expose multi-model routing to Ollama, OpenAI, vLLM, and Anthropic seamlessly via the `--model` flag. All massive dependencies, especially `torch` and `google-re2`, are strictly pinned to exact versions natively preventing ecosystem drift.*
 
 ---
 
@@ -32,6 +35,8 @@ Or with optional but recommended Tier-2 Local Vector Embeddings (uses `sentence-
 ```bash
 pip install symparse[embed]
 ```
+> [!WARNING]
+> The `[embed]` extra installs PyTorch. Depending on your environment, pip may resolve a massive 2.5GB CUDA payload. If you are installing this on a minimal log server, you can strictly install the CPU-only torch wheel first, then run `pip install symparse[embed]` to keep the footprint lightweight.
 
 Or from source:
 
@@ -97,12 +102,23 @@ tail -f /var/log/nginx/access.log | symparse run --schema access_schema.json --c
 
 ### CLI Options
 
-* `--schema <path>`: **Required**. Path to the local JSON schema file to enforce.
-* `--compile`: Compiles a fast-path sandbox script on successful AI extraction.
-* `--force-ai`: Bypasses the local fast-path cache entirely and routes all data to the AI.
-* `--confidence <float>`: Overrides the average token logprob threshold for the AI egress gate (default: `-2.0`).
-* `--embed`: Activates semantic Dense Vector tier-2 cache checks instead of simple Jaccard similarity (requires `symparse[embed]`).
-* `--stats`: Prints the engine cache hit/miss ratio, latency averages, and stream velocity on exit.
+```text
+usage: symparse run [-h] [--stats] --schema SCHEMA [--compile] [--force-ai]
+                    [--confidence CONFIDENCE] [--model MODEL] [--embed]
+
+options:
+  -h, --help            show this help message and exit
+  --stats               Print performance cache stats when finished
+  --schema SCHEMA       Path to JSON schema file
+  --compile             Compile a fast-path script on success
+  --force-ai            Bypass local cache and force AI execution
+  --confidence CONFIDENCE
+                        Token logprob threshold (default: -2.0)
+  --model MODEL         Override AI backend model (e.g. ollama/gemma3:1b, openai/gpt-4o)
+  --embed               Use local embeddings for tier-2 caching (requires sentence-transformers)
+```
+
+Run `symparse run --help` or `symparse cache --help` to explore the subcommands.
 
 ## 🐳 Docker (Pre-Loaded Fast Start)
 
@@ -132,10 +148,10 @@ We ran `symparse run --stats` iteratively over batches of 1,000 dense synthetic 
 | Schema Type | Description | Avg Wall Time (1000 lines) | Throughput |
 | --- | --- | --- | --- |
 | **Apache Basic** | Flat regex string matching | `424.13ms ± 9.91ms` | `~2,357 ops/sec` |
-| **Nginx Nested** | Nested dict-building (IP, Request obj, HTTP) | `1669.13ms ± 75.88ms` | `~599 ops/sec` |
-| **Kubernetes Audit** | Deeply structured event parsing | `1771.30ms ± 79.56ms` | `~564 ops/sec` |
-| **Invoices** | Heavy multiline text slicing/casting | `1703.53ms ± 106.56ms`| `~587 ops/sec` |
-| **JSONL Polishing** | Plucking sparse target keys from giant files | `1757.71ms ± 75.51ms` | `~568 ops/sec` |
+| **Nginx (Raw `.log` file)** | Nested dict-building (IP, Request obj, HTTP) | `1750.62ms ± 75.44ms` | `~571 ops/sec` |
+| **Kubernetes Audit** | Deeply structured event parsing | `1837.01ms ± 97.43ms` | `~544 ops/sec` |
+| **Invoices** | Heavy multiline text slicing/casting | `1794.73ms ± 70.50ms`| `~557 ops/sec` |
+| **JSONL Polishing** | Plucking sparse target keys from giant files | `1830.29ms ± 52.56ms` | `~546 ops/sec` |
 
 > [!NOTE]
 > **Real-world Variance**: Throughput scales inversely with schema nesting depth, regex multiline complexity, and CPU hardware. The `2300+ ops/sec` figure assumes flat data on standard server hardware; extremely nested JSON builders pulling disjoint strings across megabytes of context will naturally trend toward `500-800 ops/sec`. However, this still represents a massive magnitude leap over performing 1000 synchronous 1-second native LLM iterations. Note: To guarantee rigorous reproducibility, `benchmarks/run_examples.py` strictly utilizes `random.seed(42)` on all generated text workloads.
@@ -188,26 +204,32 @@ result = process_stream(
 
 ### Auto-Compiler & Cache System
 
-Symparse builds secure, mathematically ReDoS-resistant extractions without invoking `eval()`. 
+### Auto-Compiler & Cache System
+
+Symparse dynamically builds ReDoS-resistant extraction pipelines on the fly by generating sandboxed Python `dict`-builder functions surrounding `re2` matches. The output acts identical to strict LLM object extraction without needing `json.loads()`.
 
 ```python
 from symparse.compiler import generate_script, execute_script
 from symparse.cache_manager import CacheManager
 
 manager = CacheManager()
-manager.save_script(schema, "example text", "def extract(txt): ...") # Applies IPC/Unix Lock
+manager.save_script(schema, "example text", "def extract(txt): ...") # Applies IPC Cross-Platform Lock
 manager.fetch_script(schema, "example text") # Uses Hybrid Two-Tier Collision Detection
 manager.clear_cache()
 ```
 
 ## 🤝 Contributing & License
 
-Pull requests are actively welcomed! Please read the tests architecture under `tests/` to run integration checks (`test_agent_skills.py` patterns).
+Pull requests are actively welcomed! Please read the tests architecture under `tests/` to run integration checks (`test_engine.py` patterns). Check out our [CHANGELOG.md](CHANGELOG.md) to catch up on the latest architecture shifts, and see `CONTRIBUTING.md` for our submission protocol.
 
 Symparse is released under the MIT Open Source License. See the [LICENSE](LICENSE) file for more.
 
-### ⚠️ Known Limitations
-* **Operating System Constraints**: Symparse relies extensively on deep OS-level `fcntl` locks (`LOCK_EX` and `LOCK_SH`) to coordinate strictly serial atomic I/O cache writes across concurrent Unix pipes or `tail -f` streams. At this time, it is officially **Unix-only** (Linux & macOS). Windows compatibility may be shipped in future implementations using simulated portalocker bindings.
+### ⚠️ Known Limitations & Risks
+
+* **Log Context Boundaries**: `symparse` assumes the input stream consists of discrete log records partitioned by line breaks (default for commands like `tail` or `grep`). Feeding dense prose paragraphs over stdin with multiple distinct extraction candidates per line may cause extraction overwrites.
+* **Complex Data Transformations**: The compiler engine currently constructs regular expressions via safe sandboxed Python code. It is highly efficient for pattern destructuring, but cannot execute deep logical transformations (e.g., date-time conversions, mathematical sums) during the Fast Path stage. Use downstream piped tools like `jq` for manipulation.
+* **Nondeterminism**: The underlying LLM compiler may occasionally produce slightly different regular expression structures for identical schemas on cold starts. Symparse relies on rigorous JSON Schema gating and self-healing purges to guarantee that even jittery compilations are 100% compliant before entering the fast path. 
+* **Stdin Injection Security**: The text piped directly to `sys.stdin` on a cold miss is embedded within the backend AI prompt structure. While the rigid `response_format` JSON wrapper prevents code execution or systemic prompt escape, the backend model is technically exposed to arbitrary parsed string manipulation if ingesting adversarial logs.
 
 ---
-*Engineered by Aftermath Technologies Ltd. with human-in-the-loop AI assistance.*
+*Built by Aftermath Technologies Ltd.*

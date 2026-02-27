@@ -10,8 +10,7 @@ def test_generate_script_success(monkeypatch):
             pass
         def extract(self, prompt, schema):
             return {
-                "name": "name is (.*?) and",
-                "age": "am (\\d+) years"
+                "script_code": "import re2\ndef extract(text):\n    return {'name': 'Alice', 'age': 30}"
             }
             
     monkeypatch.setattr('symparse.compiler.AIClient', MockAIClient)
@@ -22,18 +21,16 @@ def test_generate_script_success(monkeypatch):
     
     script = generate_script(text, schema, successful_json)
     
-    data = json.loads(script)
-    assert "name" in data
-    assert "name is (.*?) and" in data["name"]
+    assert "def extract" in script
+    assert "'name': 'Alice'" in script
 
-def test_generate_script_invalid_re2(monkeypatch):
+def test_generate_script_invalid_python(monkeypatch):
     class MockAIClient:
         def __init__(self, *args, **kwargs):
             pass
         def extract(self, prompt, schema):
-            # Pass a lookbehind which is invalid in re2
             return {
-                "name": "(?<=name is ).*?"
+                "script_code": "def extract(text) return {" # SyntaxError
             }
             
     monkeypatch.setattr('symparse.compiler.AIClient', MockAIClient)
@@ -42,24 +39,34 @@ def test_generate_script_invalid_re2(monkeypatch):
     
     with pytest.raises(CompilationFailedError) as exc:
         generate_script("text", schema, {})
-    assert "invalid RE2" in str(exc.value)
+    assert "not valid Python" in str(exc.value)
 
 def test_execute_script():
-    script_data = {
-        "name": "name is (.*?) and",
-        "age": "am (\\d+) years"
+    script = """
+import re2
+def extract(text):
+    match1 = re2.search(r'name is (.*?) and', text)
+    match2 = re2.search(r'am (\\d+) years', text)
+    return {
+        "name": match1.group(1) if match1 else None,
+        "age": int(match2.group(1)) if match2 else None
     }
-    script = json.dumps(script_data)
+"""
     
     text = "My name is Alice and I am 30 years old."
-    schema = {"type": "object", "properties": {"name": {"type": "string"}, "age": {"type": "string"}}}
+    schema = {"type": "object", "properties": {"name": {"type": "string"}, "age": {"type": "integer"}}}
     
     result = execute_script(script, text, schema)
     assert result["name"] == "Alice"
-    assert result["age"] == "30"
+    assert result["age"] == 30
     
 def test_execute_script_no_match():
-    script = json.dumps({"name": "name is (.*?) and"})
+    script = """
+import re2
+def extract(text):
+    match = re2.search(r'name is (.*?) and', text)
+    return {"name": match.group(1) if match else None}
+"""
     text = "Someone else"
     schema = {"type": "object"}
     result = execute_script(script, text, schema)
