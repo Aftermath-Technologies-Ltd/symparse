@@ -4,14 +4,19 @@ build-backend = "hatchling.build"
 
 [project]
 name = "symparse"
-version = "0.1.0"
+version = "0.1.1"
 description = "Self-optimizing Unix pipeline tool with neurosymbolic parsing"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "jsonschema>=4.0.0",
-    "openai>=1.0.0",
-    "google-re2>=1.0"
+    "jsonschema==4.26.0",
+    "openai==2.24.0",
+    "google-re2==1.1.20251105"
+]
+classifiers = [
+    "Environment :: Console",
+    "Topic :: Text Processing",
+    "License :: OSI Approved :: MIT",
 ]
 
 [project.scripts]

@@ -17,6 +17,8 @@ def test_process_stream_fast_path(monkeypatch, tmp_path):
     
     # Mock AI Client to fail if it gets called (proves Fast Path worked)
     class MockAIClient:
+        def __init__(self, *args, **kwargs):
+            pass
         def extract(self, *args, **kwargs):
             raise Exception("AI should not be called")
             
@@ -38,6 +40,8 @@ def test_process_stream_fast_path_fallback(monkeypatch, tmp_path):
     
     # Mock AI Client to succeed after fallback
     class MockAIClient:
+        def __init__(self, *args, **kwargs):
+            pass
         def extract(self, *args, **kwargs):
             return {"age": 30}
             
@@ -55,6 +59,8 @@ def test_process_stream_compile(monkeypatch, tmp_path):
     text = "ID: 1234"
     
     class MockAIClient:
+        def __init__(self, *args, **kwargs):
+            pass
         def extract(self, *args, **kwargs):
             return {"id": "1234"}
             

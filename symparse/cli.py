@@ -16,6 +16,7 @@ def parse_args():
     run_parser.add_argument("--schema", required=True, help="Path to JSON schema file")
     run_parser.add_argument("--compile", action="store_true", help="Compile a fast-path script on success")
     run_parser.add_argument("--force-ai", action="store_true", help="Bypass local cache and force AI execution")
+    run_parser.add_argument("--confidence", type=float, help="Override average logprob confidence threshold (e.g. -2.0)")
 
     # "cache" command
     cache_parser = subparsers.add_parser("cache", help="Manage the local cache")
@@ -71,7 +72,8 @@ def main():
                 schema_dict, 
                 compile=args.compile,
                 force_ai=args.force_ai,
-                degradation_mode=mode
+                degradation_mode=mode,
+                confidence_threshold=getattr(args, "confidence", None)
             )
             print(json.dumps(result, indent=2))
         except EngineFailure as e:
