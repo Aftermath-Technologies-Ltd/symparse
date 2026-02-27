@@ -50,12 +50,24 @@ enforce_schema(data, schema)
 
 ### AI Client
 ```python
-from symparse.ai_client import AIClient, ConfidenceDegradationError
+from symparse.engine import process_stream, GracefulDegradationMode
 
-client = AIClient(base_url="http://localhost:11434/v1", model="llama3")
+# Returns dict or raises EngineFailure based on degradation mode
+result = process_stream(
+    "unstructured data",
+    schema,
+    max_retries=3,
+    degradation_mode=GracefulDegradationMode.PASSTHROUGH
+)
+```
 
-try:
-    data = client.extract("raw text", schema)
-except ConfidenceDegradationError as e:
-    print("AI output passed strict schema but semantically degraded.")
+### Cache Management
+Symparse natively implements a two-tier cache with explicit UNIX process locking to handle pipeline streaming.
+```python
+from symparse.cache_manager import CacheManager
+
+manager = CacheManager()
+manager.save_script(schema, "example text", "def extract(txt): ...") # Lock serialization
+manager.fetch_script(schema, "example text") # Uses Two-Tier Collision Detection
+manager.clear_cache()
 ```
