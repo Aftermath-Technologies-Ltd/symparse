@@ -63,6 +63,15 @@ symparse run --schema login_schema.json --compile
 
 Because we passed `--compile`, Symparse will use the LLM (AI Path) on this first pass to deduce a standard Re2 regex schema. The next time a log matching this prototype is fired, Symparse will hit the **Fast Path Cache**, completely bypassing the LLM. 
 
+### Live Verified Fallback (Graceful Degradation)
+
+Symparse is built to natively handle imperfect LLM generation on the fly. In a live test using the lightweight local `gemma3:1b` model to parse messy logs, here is how the neurosymbolic loop behaved:
+
+1. **Log 1 (`Cold Start`)**: User logs in. LLM extracts correctly and creates a Fast Path Regex Cache.
+2. **Log 2 (`Fast Path`)**: User logs out. Symparse attempts to use the Regex cache.
+3. **Execution**: The Regex cache was slightly imprecise (a flaw in the 1B parameter model's generation), missing a field requirement.
+4. **Graceful Self-Healing**: Symparse detected the strict `SchemaViolationError` mid-stream, safely purged the flawed Regex from its cache, seamlessly fell back to the local `gemma3:1b` AI Path, precisely extracted the exact JSON needed, and returned it to `stdout`—all without crashing the active Unix pipeline.
+
 ### Streaming Logs (`tail -f`)
 
 Symparse excels at processing live unstructured data feeds. 
