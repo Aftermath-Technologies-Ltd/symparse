@@ -1,6 +1,5 @@
 import os
 import json
-import fcntl
 import multiprocessing
 import pytest
 from pathlib import Path

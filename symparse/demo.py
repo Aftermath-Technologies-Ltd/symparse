@@ -27,7 +27,7 @@ def main():
     time.sleep(2)  # fake LLM latency pause before it prints
     print('{"email": "alice@example.com", "ip_address": "192.168.1.50"}')
     print('''
---- Symparse Run Stats (v0.1.1) ---
+--- Symparse Run Stats (v0.2.0) ---
 Fast Path Hits: 0
 AI Path Hits:   1
 Average Latency: 2154.30ms
@@ -46,7 +46,7 @@ Average Latency: 2154.30ms
 
     print("^C")
     print('''
---- Symparse Run Stats (v0.1.1) ---
+--- Symparse Run Stats (v0.2.0) ---
 Fast Path Hits: 50
 AI Path Hits:   0
 Average Latency: 0.42ms

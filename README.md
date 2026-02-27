@@ -18,7 +18,7 @@
 
 ---
 
-**Symparse** is a self-optimizing Unix pipeline tool that routes data between an **AI Path** (using local LLMs/Ollama) and a **Fast Path** (using cached `<re2>` regex blocks) with a strict neurosymbolic JSON validation gate.
+**Symparse** is a self-optimizing Unix pipeline tool that routes data between an **AI Path** (using local LLMs via `litellm`) and a **Fast Path** (using cached, sandboxed `re2`-based Python extraction scripts) with a strict neurosymbolic JSON validation gate.
 
 You get the magical, unstructured data extraction of Large Language Models, with the raw performance and ReDoS-safety of compiled C++ regular expressions on 95% of subsequent matched traffic.
 
@@ -102,6 +102,24 @@ tail -f /var/log/nginx/access.log | symparse run --schema access_schema.json --c
 
 ### CLI Options
 
+**Global flags** (before any subcommand):
+```text
+usage: symparse [-h] [-v] [--version] {run,cache} ...
+
+Symparse: LLM to Fast-Path Regex Compiler pipeline
+
+positional arguments:
+  {run,cache}
+    run         Run the pipeline parser
+    cache       Manage the local cache
+
+options:
+  -h, --help    show this help message and exit
+  -v, --verbose Enable debug logging
+  --version     show program's version number and exit
+```
+
+**`symparse run`**:
 ```text
 usage: symparse run [-h] [--stats] --schema SCHEMA [--compile] [--force-ai]
                     [--confidence CONFIDENCE] [--model MODEL] [--embed]
@@ -118,7 +136,15 @@ options:
   --embed               Use local embeddings for tier-2 caching (requires sentence-transformers)
 ```
 
-Run `symparse run --help` or `symparse cache --help` to explore the subcommands.
+**`symparse cache`**:
+```text
+usage: symparse cache [-h] {list,clear} ...
+
+positional arguments:
+  {list,clear}
+    list         Display cached extraction scripts
+    clear        Wipe the local compilation directory
+```
 
 ## 🐳 Docker (Pre-Loaded Fast Start)
 
@@ -131,13 +157,17 @@ docker pull aftermath/symparse:latest
 docker run -i --rm aftermath/symparse run --schema my_schema.json < logs.txt
 ```
 
-## 🎬 Viral 60-Second Demo
+## 🎬 Demo
 
-We have provided an automated terminal typing simulation script perfect for recording marketing GIFs (e.g. via Asciinema or QuickTime).
+Symparse ships with a terminal typing simulation for recording marketing GIFs or live demos (e.g. via Asciinema or QuickTime).
 
 ```bash
-python scripts/record_demo.py
+# Installed as an entry point via pip install symparse[demo]
+symparse-demo
 ```
+
+> [!NOTE]
+> The demo requires the `[demo]` extra (`pip install symparse[demo]`), which installs `asciinema`. The `symparse-demo` command simulates a cold-start plus warm-start pipeline and does not require a live LLM.
 
 ## 🏎️ Benchmarks
 
@@ -154,7 +184,7 @@ We ran `symparse run --stats` iteratively over batches of 1,000 dense synthetic 
 | **JSONL Polishing** | Plucking sparse target keys from giant files | `1830.29ms ± 52.56ms` | `~546 ops/sec` |
 
 > [!NOTE]
-> **Real-world Variance**: Throughput scales inversely with schema nesting depth, regex multiline complexity, and CPU hardware. The `2300+ ops/sec` figure assumes flat data on standard server hardware; extremely nested JSON builders pulling disjoint strings across megabytes of context will naturally trend toward `500-800 ops/sec`. However, this still represents a massive magnitude leap over performing 1000 synchronous 1-second native LLM iterations. Note: To guarantee rigorous reproducibility, `benchmarks/run_examples.py` strictly utilizes `random.seed(42)` on all generated text workloads.
+> **Reproducibility & Methodology**: All synthetic benchmarks use `random.seed(42)` for deterministic log generation (see `benchmarks/run_examples.py`). A real-world Nginx access log sample is provided at `examples/sample_nginx.log` (100 lines from a production-like workload) for independent verification. Throughput scales inversely with schema nesting depth, regex multiline complexity, and CPU hardware. The `2300+ ops/sec` figure assumes flat data on standard server hardware; deeply nested JSON builders trending toward `500-800 ops/sec` still represent a massive leap over 1000 synchronous LLM iterations.
 
 See the `examples/` directory for the raw configurations.
 
@@ -204,8 +234,6 @@ result = process_stream(
 
 ### Auto-Compiler & Cache System
 
-### Auto-Compiler & Cache System
-
 Symparse dynamically builds ReDoS-resistant extraction pipelines on the fly by generating sandboxed Python `dict`-builder functions surrounding `re2` matches. The output acts identical to strict LLM object extraction without needing `json.loads()`.
 
 ```python
@@ -227,9 +255,11 @@ Symparse is released under the MIT Open Source License. See the [LICENSE](LICENS
 ### ⚠️ Known Limitations & Risks
 
 * **Log Context Boundaries**: `symparse` assumes the input stream consists of discrete log records partitioned by line breaks (default for commands like `tail` or `grep`). Feeding dense prose paragraphs over stdin with multiple distinct extraction candidates per line may cause extraction overwrites.
-* **Complex Data Transformations**: The compiler engine currently constructs regular expressions via safe sandboxed Python code. It is highly efficient for pattern destructuring, but cannot execute deep logical transformations (e.g., date-time conversions, mathematical sums) during the Fast Path stage. Use downstream piped tools like `jq` for manipulation.
-* **Nondeterminism**: The underlying LLM compiler may occasionally produce slightly different regular expression structures for identical schemas on cold starts. Symparse relies on rigorous JSON Schema gating and self-healing purges to guarantee that even jittery compilations are 100% compliant before entering the fast path. 
-* **Stdin Injection Security**: The text piped directly to `sys.stdin` on a cold miss is embedded within the backend AI prompt structure. While the rigid `response_format` JSON wrapper prevents code execution or systemic prompt escape, the backend model is technically exposed to arbitrary parsed string manipulation if ingesting adversarial logs.
+* **Complex Data Transformations**: The compiler engine constructs sandboxed Python scripts wrapping `re2` regex extractions (executed via restricted `exec()` with limited `__builtins__`). It is highly efficient for pattern destructuring, but cannot execute deep logical transformations (e.g., date-time conversions, mathematical sums) during the Fast Path stage. Use downstream piped tools like `jq` for manipulation.
+* **Nondeterminism**: The underlying LLM compiler may occasionally produce slightly different regex structures for identical schemas on cold starts. However, once a script enters the Fast Path cache, execution is fully deterministic. Symparse relies on rigorous JSON Schema gating and self-healing cache purges to guarantee that even jittery compilations are 100% schema-compliant before caching. To minimize cold-start variance, use `temperature=0.0` (default) and a consistent `--model`.
+* **Stdin Injection Security**: On a cache miss (AI Path), the raw text piped to `sys.stdin` is embedded within the LLM prompt. The rigid `response_format` JSON Schema wrapper constrains the model's output structure, which prevents arbitrary output escape. However, adversarial log lines could theoretically manipulate the model's extraction behavior. **Mitigations**: (1) Use `--compile` to cache scripts and minimize AI Path exposure; (2) Pre-filter untrusted input with `grep` or `sed` before piping; (3) In high-security environments, run exclusively on the Fast Path after an initial trusted compilation pass.
+* **Windows Compatibility**: The caching subsystem uses `portalocker` for cross-platform file locking. Windows is supported in principle but has not been extensively tested in production. Full Windows CI coverage is planned for v0.3.
+* **`[embed]` Extra Size**: The `sentence-transformers` + `torch` dependency chain can pull up to 2.5 GB of CUDA libraries. On minimal servers, install the CPU-only torch wheel first: `pip install torch --index-url https://download.pytorch.org/whl/cpu && pip install symparse[embed]`.
 
 ---
 *Built by Aftermath Technologies Ltd.*

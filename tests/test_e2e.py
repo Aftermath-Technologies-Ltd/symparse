@@ -1,7 +1,7 @@
 import pytest
 import os
 import json
-import fcntl
+import portalocker
 from pathlib import Path
 
 from symparse.engine import process_stream
@@ -30,14 +30,14 @@ def test_fallback_corrupted_script(tmp_path, monkeypatch):
     # ensure metadata is injected
     meta_file = tmp_path / "metadata.json"
     with open(meta_file, "r+") as f:
-        fcntl.flock(f, fcntl.LOCK_EX)
+        portalocker.lock(f, portalocker.LOCK_EX)
         meta = json.loads(f.read() or "{}")
         meta.setdefault("schemas", {})
         meta["schemas"][hash_val] = {"archetype_text": "User ID is 42", "compiled": True}
         f.seek(0)
         f.truncate()
         f.write(json.dumps(meta))
-        fcntl.flock(f, fcntl.LOCK_UN)
+        portalocker.unlock(f)
     def mock_cache_manager():
         return cm
     monkeypatch.setattr('symparse.engine.CacheManager', mock_cache_manager)
