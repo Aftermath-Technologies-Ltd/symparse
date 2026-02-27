@@ -10,12 +10,19 @@ class ConfidenceDegradationError(Exception):
     pass
 
 class AIClient:
-    def __init__(self, base_url: str = None, api_key: str = None, model: str = None, logprob_threshold: float = -2.0):
+    def __init__(self, base_url: str = None, api_key: str = None, model: str = None, logprob_threshold: float = None):
         # Default to local containerized endpoints if not provided
         self.base_url = base_url or os.getenv("SYMPARSE_AI_BASE_URL", "http://localhost:11434/v1")
         self.api_key = api_key or os.getenv("SYMPARSE_AI_API_KEY", "ollama")
         self.model = model or os.getenv("SYMPARSE_AI_MODEL", "llama3")
-        self.logprob_threshold = logprob_threshold
+        
+        # Determine logprob threshold from init arg, then env var, then fallback to -2.0
+        if logprob_threshold is not None:
+            self.logprob_threshold = logprob_threshold
+        elif "SYMPARSE_CONFIDENCE_THRESHOLD" in os.environ:
+            self.logprob_threshold = float(os.environ["SYMPARSE_CONFIDENCE_THRESHOLD"])
+        else:
+            self.logprob_threshold = -2.0
         
         self.client = OpenAI(
             base_url=self.base_url,

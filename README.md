@@ -21,11 +21,15 @@ You get the magical, unstructured data extraction of Large Language Models, with
 
 ## 🚀 Installation
 
+Currently, symparse is preparing for release on PyPI. In the meantime, install directly from source:
+
 ```bash
-pip install symparse
-# or from source:
-# pip install -e .
+git clone https://github.com/Aftermath-Technologies-Ltd/symparse.git
+cd symparse
+pip install -e .
 ```
+
+(Soon: `pip install symparse`)
 
 ## ⚡ Usage
 

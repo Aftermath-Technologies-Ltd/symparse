@@ -4,7 +4,42 @@ import sys
 import io
 from symparse.cli import main
 
+def test_cli_cache_list_clear(monkeypatch, capsys):
+    from symparse.cli import main
+    import json
+    
+    # We can mock CacheManager.list_cache and clear_cache
+    class DummyCache:
+        def list_cache(self):
+            return {"test_schema": "def extract(txt): pass"}
+        def clear_cache(self):
+            pass
+            
+    import symparse.cache_manager
+    monkeypatch.setattr(symparse.cache_manager, "CacheManager", lambda: DummyCache())
+    
+    monkeypatch.setattr("sys.argv", ["symparse", "cache", "list"])
+    try:
+        main()
+    except SystemExit:
+        pass
+        
+    out, _ = capsys.readouterr()
+    assert "test_schema" in out
+    
+    monkeypatch.setattr("sys.argv", ["symparse", "-v", "cache", "clear"])
+    try:
+        main()
+    except SystemExit:
+        pass
+        
+    out, _ = capsys.readouterr()
+    assert "Cache cleared" in out
+
 def test_cache_list_command(capsys):
+    from symparse.cache_manager import CacheManager
+    CacheManager().clear_cache()
+    
     test_args = ["symparse", "cache", "list"]
     with patch.object(sys, 'argv', test_args):
         with pytest.raises(SystemExit) as e:

@@ -7,6 +7,8 @@ def parse_args():
         description="Self-optimizing Unix pipeline tool with neurosymbolic parsing."
     )
     
+    parser.add_argument("-v", "--verbose", action="store_true", help="Enable debug logging")
+    
     subparsers = parser.add_subparsers(dest="command", required=True)
     
     # "run" command
@@ -25,6 +27,10 @@ def parse_args():
 
 def main():
     args = parse_args()
+    
+    import logging
+    log_level = logging.DEBUG if args.verbose else logging.WARNING
+    logging.basicConfig(level=log_level, format="%(levelname)s: %(message)s")
     
     if args.command == "cache":
         from symparse.cache_manager import CacheManager
