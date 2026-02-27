@@ -5,6 +5,8 @@ from typing import Any, Dict
 
 from symparse.ai_client import AIClient, ConfidenceDegradationError
 from symparse.validator import enforce_schema, SchemaViolationError
+from symparse.cache_manager import CacheManager
+from symparse.compiler import generate_script, execute_script
 
 logger = logging.getLogger(__name__)
 
@@ -26,22 +28,34 @@ def process_stream(
 ) -> Dict[str, Any]:
     """
     Entry point handling routing logic. 
-    Passes data to AI Client, validates, and retries on failure.
+    Routes Fast Paths vs AI Paths. ReDoS-proof regex zero copies strings in C++.
     """
     ai_client = AIClient()
+    cache_manager = CacheManager()
     
-    # Fast path logic placeholder
+    # Fast path logic
     if not force_ai:
-        # TODO: Implement Tier 1/2 semantic caching and execution here
-        pass
+        cached_script = cache_manager.fetch_script(schema_dict, input_text)
+        if cached_script:
+            logger.info("Executing Fast Path via cached script")
+            try:
+                fast_json = execute_script(cached_script, input_text)
+                enforce_schema(fast_json, schema_dict)
+                return fast_json
+            except SchemaViolationError as e:
+                logger.warning(f"Fast path failed validation ({e}). Falling back to AI Path and purging cache.")
+                cache_manager.delete_script(schema_dict)
+            except Exception as e:
+                logger.warning(f"Fast path failed execution ({e}). Falling back to AI Path and purging cache.")
+                cache_manager.delete_script(schema_dict)
 
     # AI Path (Cold Start)
+    logger.info("Routing through AI Path (Cold Start)")
     last_error_message = ""
     prompt_text = input_text
     
     for attempt in range(max_retries):
         try:
-            # Reflexion loop: attach the last error if any
             current_prompt = prompt_text
             if last_error_message:
                 current_prompt += f"\n\nERROR FROM PREVIOUS ATTEMPT:\n{last_error_message}\nPlease fix your output to strictly adhere to the schema."
@@ -51,10 +65,11 @@ def process_stream(
             # Pass to validator
             enforce_schema(extracted_json, schema_dict)
             
-            # Auto-compiler logic placeholder
+            # Auto-compiler logic
             if compile:
-                # TODO: compiler.generate_script(...)
-                pass
+                logger.info("Compiling extraction to local RE2 script cache")
+                generated_script = generate_script(input_text, schema_dict, extracted_json)
+                cache_manager.save_script(schema_dict, input_text, generated_script)
                 
             return extracted_json
             
@@ -75,3 +90,4 @@ def process_stream(
             "last_error": last_error_message,
             "raw_text": input_text
         }
+

@@ -149,3 +149,31 @@ class CacheManager:
                     fcntl.flock(f, fcntl.LOCK_EX)
                     os.unlink(p)
                     # File is unlinked, lock releases on close
+                    
+    def delete_script(self, schema_dict: dict):
+        """Deletes a cached script when the Fast Path fails validation."""
+        schema_hash = self._hash_schema(schema_dict)
+        script_path = self.cache_dir / f"{schema_hash}.py"
+        meta_file = self.cache_dir / "metadata.json"
+        
+        if script_path.exists():
+            with open(script_path, "a") as f:
+                fcntl.flock(f, fcntl.LOCK_EX)
+                os.unlink(script_path)
+                
+        with open(meta_file, "r+") as f:
+            fcntl.flock(f, fcntl.LOCK_EX)
+            try:
+                content = f.read()
+                if content:
+                    meta = json.loads(content)
+                    if schema_hash in meta.get("schemas", {}):
+                        del meta["schemas"][schema_hash]
+                        f.seek(0)
+                        f.truncate()
+                        f.write(json.dumps(meta))
+                        f.flush()
+                        os.fsync(f.fileno())
+            finally:
+                fcntl.flock(f, fcntl.LOCK_UN)
+
