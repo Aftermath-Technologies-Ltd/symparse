@@ -71,3 +71,12 @@ manager.save_script(schema, "example text", "def extract(txt): ...") # Lock seri
 manager.fetch_script(schema, "example text") # Uses Two-Tier Collision Detection
 manager.clear_cache()
 ```
+
+### Auto-Compiler
+The Auto-Compiler generates deterministic, mathematically ReDoS-proof extraction scripts without needing `eval()`.
+```python
+from symparse.compiler import generate_script, execute_script
+
+script = generate_script(text="...", schema={...}, successful_json={...})
+fast_result = execute_script(script, text="...")
+```
