@@ -12,7 +12,8 @@ dependencies = [
     "openai==1.61.0",
     "google-re2==1.0.0",
     "jsonschema==4.23.0",
-    "litellm>=1.50.0"
+    "litellm>=1.50.0",
+    "portalocker>=2.8.2"
 ]
 classifiers = [
     "Environment :: Console",
@@ -22,12 +23,14 @@ classifiers = [
 
 [project.scripts]
 symparse = "symparse.cli:main"
+symparse-demo = "symparse.demo:main"
 
 [project.optional-dependencies]
 embed = [
     "sentence-transformers==3.4.1",
     "torch==2.5.1"
 ]
+demo = ["asciinema"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"

@@ -133,11 +133,12 @@ We ran `symparse run --stats` iteratively over batches of 1,000 dense synthetic 
 | --- | --- | --- | --- |
 | **Apache Basic** | Flat regex string matching | `424.13ms ± 9.91ms` | `~2,357 ops/sec` |
 | **Nginx Nested** | Nested dict-building (IP, Request obj, HTTP) | `1669.13ms ± 75.88ms` | `~599 ops/sec` |
+| **Kubernetes Audit** | Deeply structured event parsing | `1771.30ms ± 79.56ms` | `~564 ops/sec` |
 | **Invoices** | Heavy multiline text slicing/casting | `1703.53ms ± 106.56ms`| `~587 ops/sec` |
 | **JSONL Polishing** | Plucking sparse target keys from giant files | `1757.71ms ± 75.51ms` | `~568 ops/sec` |
 
 > [!NOTE]
-> **Real-world Variance**: Throughput scales inversely with schema nesting depth, regex multiline complexity, and CPU hardware. The `2300+ ops/sec` figure assumes flat data on standard server hardware; extremely nested JSON builders pulling disjoint strings across megabytes of context will naturally trend toward `500-800 ops/sec`. However, this still represents a massive magnitude leap over performing 1000 synchronous 1-second native LLM iterations.
+> **Real-world Variance**: Throughput scales inversely with schema nesting depth, regex multiline complexity, and CPU hardware. The `2300+ ops/sec` figure assumes flat data on standard server hardware; extremely nested JSON builders pulling disjoint strings across megabytes of context will naturally trend toward `500-800 ops/sec`. However, this still represents a massive magnitude leap over performing 1000 synchronous 1-second native LLM iterations. Note: To guarantee rigorous reproducibility, `benchmarks/run_examples.py` strictly utilizes `random.seed(42)` on all generated text workloads.
 
 See the `examples/` directory for the raw configurations.
 

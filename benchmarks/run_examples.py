@@ -10,8 +10,12 @@ from pathlib import Path
 SCHEMAS = {
     "nginx": "examples/nginx_schema.json",
     "invoice": "examples/invoice_schema.json",
-    "jsonl": "examples/jsonl_schema.json"
+    "jsonl": "examples/jsonl_schema.json",
+    "kubernetes": "examples/kubernetes_schema.json"
 }
+
+# SEED for benchmark absolute credibility reproducible accuracy
+random.seed(42)
 
 def generate_nginx(count):
     lines = []
@@ -42,6 +46,19 @@ def generate_jsonl(count):
         msg = "Database connection timed out" if level == "ERROR" else "Heartbeat ok"
         trace = f"trc_{random.randint(10000, 99999)}"
         lines.append(json.dumps({"ts": int(time.time()), "level": level, "module": "db_conn", "message": msg, "trace_id": trace, "latency_ms": random.randint(10, 500)}) + "\n")
+    return "".join(lines)
+
+def generate_kubernetes(count):
+    lines = []
+    for i in range(count):
+        ts = "2026-02-26T14:32:11Z"
+        pod = f"nginx-deployment-{random.randint(1000, 9999)}"
+        ns = random.choice(["default", "kube-system", "monitoring"])
+        container = "nginx"
+        evt = random.choice(["Normal", "Warning"])
+        reason = "Started" if evt == "Normal" else "BackOff"
+        msg = "Started container nginx" if evt == "Normal" else "Back-off restarting failed container"
+        lines.append(f"{ts} {evt} {reason} pod/{pod} namespace/{ns} container/{container} - {msg}\n")
     return "".join(lines)
 
 # Fast path compiled scripts to fake a perfectly warm cache for benchmark purposes:
@@ -97,6 +114,21 @@ def extract(text):
             "latency_ms": int(lat.group(1)) if lat else None
         }
     return {}
+""",
+    "kubernetes": """import re2
+def extract(text):
+    m = re2.search(r'^(\\S+) (\\S+) (\\S+) pod/(\\S+) namespace/(\\S+) container/(\\S+) - (.*)$', text)
+    if m:
+        return {
+            "timestamp": m.group(1),
+            "event_type": m.group(2),
+            "reason": m.group(3),
+            "pod_name": m.group(4),
+            "namespace": m.group(5),
+            "container": m.group(6),
+            "message": m.group(7)
+        }
+    return {}
 """
 }
 
@@ -136,11 +168,13 @@ def run_benchmark(name, schema_path, logs_str, true_log_len):
     print(f"===========================================================\\n")
 
 if __name__ == "__main__":
-    print("Generating logs...")
+    print("Generating logs (with random.seed(42))...")
     nginx_logs = generate_nginx(1000)
     invoice_logs = generate_invoice(1000)
     jsonl_logs = generate_jsonl(1000)
+    k8s_logs = generate_kubernetes(1000)
     
     run_benchmark("nginx", SCHEMAS["nginx"], nginx_logs, 1000)
     run_benchmark("invoice", SCHEMAS["invoice"], invoice_logs, 1000)
     run_benchmark("jsonl", SCHEMAS["jsonl"], jsonl_logs, 1000)
+    run_benchmark("kubernetes", SCHEMAS["kubernetes"], k8s_logs, 1000)

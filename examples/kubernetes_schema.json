@@ -1,0 +1,33 @@
+{
+    "title": "Kubernetes Audit Event",
+    "type": "object",
+    "properties": {
+        "timestamp": {
+            "type": "string"
+        },
+        "pod_name": {
+            "type": "string"
+        },
+        "namespace": {
+            "type": "string"
+        },
+        "container": {
+            "type": "string"
+        },
+        "event_type": {
+            "type": "string"
+        },
+        "reason": {
+            "type": "string"
+        },
+        "message": {
+            "type": "string"
+        }
+    },
+    "required": [
+        "timestamp",
+        "pod_name",
+        "namespace",
+        "event_type"
+    ]
+}

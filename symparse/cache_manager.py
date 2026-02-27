@@ -1,10 +1,10 @@
 import os
 import json
-import hashlib
-import fcntl
 import logging
+import hashlib
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Any
+import portalocker
 
 logger = logging.getLogger(__name__)
 
@@ -25,10 +25,10 @@ class CacheManager:
         # Touch metadata file if it doesn't exist to allow read-locking later
         if not meta_file.exists():
             with open(meta_file, "a") as f:
-                fcntl.flock(f, fcntl.LOCK_EX)
+                portalocker.lock(f, portalocker.LOCK_EX)
                 if os.path.getsize(meta_file) == 0:
                     f.write(json.dumps({"schemas": {}}))
-                fcntl.flock(f, fcntl.LOCK_UN)
+                portalocker.unlock(f)
 
     def _hash_schema(self, schema_dict: dict) -> str:
         """Tier 1: Deterministic exact-match hashing."""
@@ -75,11 +75,11 @@ class CacheManager:
         meta_file = self.cache_dir / "metadata.json"
         
         with open(meta_file, "r") as f:
-            fcntl.flock(f, fcntl.LOCK_SH) # Shared lock for process-safe reads
+            portalocker.lock(f, portalocker.LOCK_SH) # Shared lock for process-safe reads
             try:
                 meta = json.load(f)
             finally:
-                fcntl.flock(f, fcntl.LOCK_UN)
+                portalocker.unlock(f)
         
         if schema_hash not in meta.get("schemas", {}):
             return None
@@ -112,39 +112,41 @@ class CacheManager:
             
         script_path = self.cache_dir / f"{schema_hash}.py"
         if script_path.exists():
+            # Acquire shared lock for reading
             with open(script_path, "r") as f:
-                fcntl.flock(f, fcntl.LOCK_SH)
+                portalocker.lock(f, portalocker.LOCK_SH)
                 try:
                     return f.read()
                 finally:
-                    fcntl.flock(f, fcntl.LOCK_UN)
+                    portalocker.unlock(f)
                     
         return None
 
     def save_script(self, schema_dict: dict, text: str, script_content: str, use_embeddings: bool = False):
         """
         Saves a generated extraction script into the cache.
-        Writes must be strictly serialized via fcntl exclusive locks.
+        Writes must be strictly serialized via portalocker exclusive locks.
         """
         schema_hash = self._hash_schema(schema_dict)
         
         script_path = self.cache_dir / f"{schema_hash}.py"
-        meta_file = self.cache_dir / "metadata.json"
         
-        # Write script securely
+        # Lock and write the compiled extraction script
         with open(script_path, "w") as f:
-            fcntl.flock(f, fcntl.LOCK_EX)
+            portalocker.lock(f, portalocker.LOCK_EX)
             try:
                 f.write(script_content)
                 f.flush()
                 # Ensure data is synced to disk to avoid concurrent streaming corruption
                 os.fsync(f.fileno()) 
             finally:
-                fcntl.flock(f, fcntl.LOCK_UN)
+                portalocker.unlock(f)
                 
-        # Update metadata atomically via locking
+        # Lock and update the metadata global index
+        meta_file = self.cache_dir / "metadata.json"
+        
         with open(meta_file, "r+") as f:
-            fcntl.flock(f, fcntl.LOCK_EX)
+            portalocker.lock(f, portalocker.LOCK_EX)
             try:
                 content = f.read()
                 meta = json.loads(content) if content else {"schemas": {}}
@@ -168,13 +170,13 @@ class CacheManager:
                 f.flush()
                 os.fsync(f.fileno())
             finally:
-                fcntl.flock(f, fcntl.LOCK_UN)
+                portalocker.unlock(f)
                 
     def list_cache(self):
         """Displays all locally compiled extraction scripts and schema hashes."""
         meta_file = self.cache_dir / "metadata.json"
         with open(meta_file, "r") as f:
-            fcntl.flock(f, fcntl.LOCK_SH)
+            portalocker.lock(f, portalocker.LOCK_SH)
             try:
                 content = f.read()
                 if not content:
@@ -182,7 +184,7 @@ class CacheManager:
                 meta = json.loads(content)
                 return meta.get("schemas", {})
             finally:
-                fcntl.flock(f, fcntl.LOCK_UN)
+                portalocker.unlock(f)
 
     def clear_cache(self):
         """Wipes the local compilation directory."""
@@ -191,7 +193,7 @@ class CacheManager:
                 # Acquire exclusive lock on the file before unlinking to prevent racing
                 try:
                     with open(p, "a") as f:
-                        fcntl.flock(f, fcntl.LOCK_EX)
+                        portalocker.lock(f, portalocker.LOCK_EX)
                         os.unlink(p)
                 except FileNotFoundError:
                     pass
@@ -201,20 +203,22 @@ class CacheManager:
         """Deletes a cached script when the Fast Path fails validation."""
         schema_hash = self._hash_schema(schema_dict)
         script_path = self.cache_dir / f"{schema_hash}.py"
-        meta_file = self.cache_dir / "metadata.json"
         
         if script_path.exists():
             with open(script_path, "a") as f:
-                fcntl.flock(f, fcntl.LOCK_EX)
+                portalocker.lock(f, portalocker.LOCK_EX)
                 os.unlink(script_path)
+                # Note: unlinking does not intrinsically close/unlock the descriptor on all OSs, 
+                # but portalocker context handles closure implicitly, or the file handle garbage collection does.
                 
+        # Remove metadata definition
+        meta_file = self.cache_dir / "metadata.json"
         with open(meta_file, "r+") as f:
-            fcntl.flock(f, fcntl.LOCK_EX)
+            portalocker.lock(f, portalocker.LOCK_EX)
             try:
                 content = f.read()
-                if content:
-                    meta = json.loads(content)
-                    if schema_hash in meta.get("schemas", {}):
+                meta = json.loads(content) if content else {"schemas": {}}
+                if schema_hash in meta.get("schemas", {}):
                         del meta["schemas"][schema_hash]
                         f.seek(0)
                         f.truncate()
@@ -222,5 +226,5 @@ class CacheManager:
                         f.flush()
                         os.fsync(f.fileno())
             finally:
-                fcntl.flock(f, fcntl.LOCK_UN)
+                portalocker.unlock(f)
 
