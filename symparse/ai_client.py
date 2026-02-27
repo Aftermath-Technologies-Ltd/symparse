@@ -10,7 +10,7 @@ class ConfidenceDegradationError(Exception):
     pass
 
 class AIClient:
-    def __init__(self, base_url: str = None, api_key: str = None, model: str = None, logprob_threshold: float = -0.5):
+    def __init__(self, base_url: str = None, api_key: str = None, model: str = None, logprob_threshold: float = -2.0):
         # Default to local containerized endpoints if not provided
         self.base_url = base_url or os.getenv("SYMPARSE_AI_BASE_URL", "http://localhost:11434/v1")
         self.api_key = api_key or os.getenv("SYMPARSE_AI_API_KEY", "ollama")
@@ -51,11 +51,14 @@ class AIClient:
         
         # Confidence Egress Gate
         if choice.logprobs and choice.logprobs.content:
-            for token_logprob in choice.logprobs.content:
+            logprobs = [token.logprob for token in choice.logprobs.content]
+            if logprobs:
+                avg_logprob = sum(logprobs) / len(logprobs)
+                
                 # Egress Gate check against threshold
-                if token_logprob.logprob < self.logprob_threshold:
+                if avg_logprob < self.logprob_threshold:
                     raise ConfidenceDegradationError(
-                        f"Semantic degradation detected. Token '{token_logprob.token}' logprob ({token_logprob.logprob:.2f}) is below threshold ({self.logprob_threshold:.2f})."
+                        f"Semantic degradation detected. Average logprob ({avg_logprob:.2f}) is below threshold ({self.logprob_threshold:.2f})."
                     )
 
         return json.loads(raw_json)

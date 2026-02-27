@@ -17,9 +17,6 @@ dependencies = [
 [project.scripts]
 symparse = "symparse.cli:main"
 
-[tool.setuptools.packages.find]
-where = ["."]
-
 [tool.pytest.ini_options]
 minversion = "6.0"
 addopts = "-ra -q"

@@ -39,7 +39,7 @@ def process_stream(
         if cached_script:
             logger.info("Executing Fast Path via cached script")
             try:
-                fast_json = execute_script(cached_script, input_text)
+                fast_json = execute_script(cached_script, input_text, schema_dict)
                 enforce_schema(fast_json, schema_dict)
                 return fast_json
             except SchemaViolationError as e:

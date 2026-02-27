@@ -11,7 +11,7 @@ def test_cache_list_command(capsys):
             main()
         assert e.value.code == 0
     captured = capsys.readouterr()
-    assert "TODO: cache list" in captured.out
+    assert "{}" in captured.out
 
 def test_run_command_no_stdin(capsys):
     test_args = ["symparse", "run", "--schema", "dummy.json"]
@@ -35,12 +35,16 @@ def test_run_command_empty_stdin(capsys):
     captured = capsys.readouterr()
     assert "Error: Empty stdin stream." in captured.err
 
+from unittest.mock import mock_open
+
 def test_run_command_success(capsys):
     test_args = ["symparse", "run", "--schema", "dummy.json", "--compile"]
+    dummy_schema = '{"type": "object", "properties": {"name": {"type": "string"}}}'
     with patch.object(sys, 'argv', test_args):
         with patch('sys.stdin.isatty', return_value=False):
-            with patch('sys.stdin.read', return_value="valid data"):
-                main() # Should not raise SystemExit
+            with patch('sys.stdin.read', return_value='My name is Alice'):
+                with patch('builtins.open', mock_open(read_data=dummy_schema)):
+                    with patch('symparse.engine.process_stream', return_value={'name': 'Alice'}):
+                        main()
     captured = capsys.readouterr()
-    assert "Schema: dummy.json, Compile: True, Force AI: False" in captured.out
-    assert "Input: valid data..." in captured.out
+    assert '"name": "Alice"' in captured.out

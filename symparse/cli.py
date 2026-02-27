@@ -27,10 +27,13 @@ def main():
     args = parse_args()
     
     if args.command == "cache":
+        from symparse.cache_manager import CacheManager
+        manager = CacheManager()
         if args.cache_command == "list":
-            print("TODO: cache list")
+            print(json.dumps(manager.list_cache(), indent=2))
         elif args.cache_command == "clear":
-            print("TODO: cache clear")
+            manager.clear_cache()
+            print("Cache cleared.")
         sys.exit(0)
         
     if args.command == "run":

@@ -29,7 +29,7 @@ def test_process_stream_fast_path(monkeypatch, tmp_path):
     
 def test_process_stream_fast_path_fallback(monkeypatch, tmp_path):
     schema = {"type": "object", "properties": {"age": {"type": "integer"}}, "required": ["age"]}
-    text = "I am 30 years old"
+    text = "I am THIRTY years old"
     
     # Pre-populate cache with script that extracts string instead of int to trigger validation failure
     cm = CacheManager(cache_dir=tmp_path)

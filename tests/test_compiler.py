@@ -52,13 +52,15 @@ def test_execute_script():
     script = json.dumps(script_data)
     
     text = "My name is Alice and I am 30 years old."
+    schema = {"type": "object", "properties": {"name": {"type": "string"}, "age": {"type": "string"}}}
     
-    result = execute_script(script, text)
+    result = execute_script(script, text, schema)
     assert result["name"] == "Alice"
     assert result["age"] == "30"
     
 def test_execute_script_no_match():
     script = json.dumps({"name": "name is (.*?) and"})
     text = "Someone else"
-    result = execute_script(script, text)
+    schema = {"type": "object"}
+    result = execute_script(script, text, schema)
     assert result["name"] is None

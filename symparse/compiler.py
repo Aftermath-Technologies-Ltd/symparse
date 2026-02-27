@@ -1,6 +1,7 @@
 import json
 import logging
 import re2
+from typing import Any
 from symparse.ai_client import AIClient
 
 logger = logging.getLogger(__name__)
@@ -57,7 +58,19 @@ Return a JSON object where keys are the schema property names and values are the
         logger.error(f"Failed to generate auto-compiled script: {e}")
         raise CompilationFailedError(str(e))
         
-def execute_script(script_content: str, text: str) -> dict:
+def _coerce_type(value: str | None, schema_prop: dict) -> Any:
+    if value is None:
+        return None
+    t = schema_prop.get("type")
+    if t == "integer":
+        return int(value)
+    if t == "number":
+        return float(value)
+    if t == "boolean":
+        return value.lower() in ("true", "1", "yes")
+    return value  # string or fallback
+
+def execute_script(script_content: str, text: str, schema: dict) -> dict:
     """
     Executes the sandboxed re2 extraction script.
     """
@@ -67,9 +80,10 @@ def execute_script(script_content: str, text: str) -> dict:
         regex = re2.compile(pattern)
         match = regex.search(text)
         if match and match.groups():
-            # For simplicity, just grab the first capture group. 
-            # Sub-type parsing (e.g., int conversions) happens later via the validator/engine.
-            result[key] = match.group(1)
+            val = match.group(1)
         else:
-            result[key] = None
+            val = None
+            
+        prop_schema = schema.get("properties", {}).get(key, {})
+        result[key] = _coerce_type(val, prop_schema)
     return result
