@@ -59,16 +59,7 @@ def test_run_command_no_stdin(capsys):
     captured = capsys.readouterr()
     assert "Error: No data piped into stdin." in captured.err
 
-def test_run_command_empty_stdin(capsys):
-    test_args = ["symparse", "run", "--schema", "dummy.json"]
-    with patch.object(sys, 'argv', test_args):
-        with patch('sys.stdin.isatty', return_value=False):
-            with patch('sys.stdin.read', return_value="   \n  "):
-                with pytest.raises(SystemExit) as e:
-                    main()
-                assert e.value.code == 1
-    captured = capsys.readouterr()
-    assert "Error: Empty stdin stream." in captured.err
+
 
 from unittest.mock import mock_open
 
@@ -77,7 +68,7 @@ def test_run_command_success(capsys):
     dummy_schema = '{"type": "object", "properties": {"name": {"type": "string"}}}'
     with patch.object(sys, 'argv', test_args):
         with patch('sys.stdin.isatty', return_value=False):
-            with patch('sys.stdin.read', return_value='My name is Alice'):
+            with patch('sys.stdin', io.StringIO('My name is Alice\n')):
                 with patch('builtins.open', mock_open(read_data=dummy_schema)):
                     with patch('symparse.engine.process_stream', return_value={'name': 'Alice'}):
                         main()

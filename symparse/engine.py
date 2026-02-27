@@ -14,6 +14,16 @@ class GracefulDegradationMode(Enum):
     HALT = "halt"
     PASSTHROUGH = "passthrough"
 
+from dataclasses import dataclass
+
+@dataclass
+class EngineStats:
+    fast_path_hits: int = 0
+    ai_path_hits: int = 0
+    total_latency_ms: float = 0.0
+
+global_stats = EngineStats()
+
 class EngineFailure(Exception):
     """Raised when engine fails and degradation mode is HALT."""
     pass
@@ -35,6 +45,8 @@ def process_stream(
     cache_manager = CacheManager()
     
     # Fast path logic
+    import time
+    start_time = time.time()
     if not force_ai:
         cached_script = cache_manager.fetch_script(schema_dict, input_text)
         if cached_script:
@@ -42,6 +54,8 @@ def process_stream(
             try:
                 fast_json = execute_script(cached_script, input_text, schema_dict)
                 enforce_schema(fast_json, schema_dict)
+                global_stats.fast_path_hits += 1
+                global_stats.total_latency_ms += (time.time() - start_time) * 1000
                 return fast_json
             except SchemaViolationError as e:
                 logger.warning(f"Fast path failed validation ({e}). Falling back to AI Path and purging cache.")
@@ -72,6 +86,8 @@ def process_stream(
                 generated_script = generate_script(input_text, schema_dict, extracted_json)
                 cache_manager.save_script(schema_dict, input_text, generated_script)
                 
+            global_stats.ai_path_hits += 1
+            global_stats.total_latency_ms += (time.time() - start_time) * 1000
             return extracted_json
             
         except (SchemaViolationError, ConfidenceDegradationError) as e:

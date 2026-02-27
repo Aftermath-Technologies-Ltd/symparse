@@ -13,6 +13,7 @@ def parse_args():
     
     # "run" command
     run_parser = subparsers.add_parser("run", help="Run the pipeline parser")
+    run_parser.add_argument("--stats", action="store_true", help="Print performance cache stats when finished")
     run_parser.add_argument("--schema", required=True, help="Path to JSON schema file")
     run_parser.add_argument("--compile", action="store_true", help="Compile a fast-path script on success")
     run_parser.add_argument("--force-ai", action="store_true", help="Bypass local cache and force AI execution")
@@ -48,13 +49,8 @@ def main():
             print("Error: No data piped into stdin.", file=sys.stderr)
             sys.exit(1)
             
-        input_data = sys.stdin.read()
-        if not input_data.strip():
-             print("Error: Empty stdin stream.", file=sys.stderr)
-             sys.exit(1)
-             
         import os
-        from symparse.engine import process_stream, EngineFailure, GracefulDegradationMode
+        from symparse.engine import process_stream, EngineFailure, GracefulDegradationMode, global_stats
         
         try:
             with open(args.schema, 'r') as f:
@@ -67,18 +63,33 @@ def main():
         mode = GracefulDegradationMode.PASSTHROUGH if degradation_mode == "passthrough" else GracefulDegradationMode.HALT
             
         try:
-            result = process_stream(
-                input_data, 
-                schema_dict, 
-                compile=args.compile,
-                force_ai=args.force_ai,
-                degradation_mode=mode,
-                confidence_threshold=getattr(args, "confidence", None)
-            )
-            print(json.dumps(result, indent=2))
+            for line in sys.stdin:
+                line = line.strip()
+                if not line:
+                    continue
+                result = process_stream(
+                    line, 
+                    schema_dict, 
+                    compile=args.compile,
+                    force_ai=args.force_ai,
+                    degradation_mode=mode,
+                    confidence_threshold=getattr(args, "confidence", None)
+                )
+                print(json.dumps(result))
+                sys.stdout.flush()
         except EngineFailure as e:
             print(f"Engine Failure: {e}", file=sys.stderr)
             sys.exit(1)
+        except KeyboardInterrupt:
+            pass
+            
+        if getattr(args, "stats", False):
+            total_runs = global_stats.fast_path_hits + global_stats.ai_path_hits
+            avg_latency = global_stats.total_latency_ms / total_runs if total_runs > 0 else 0.0
+            print(f"\n--- Symparse Run Stats ---", file=sys.stderr)
+            print(f"Fast Path Hits: {global_stats.fast_path_hits}", file=sys.stderr)
+            print(f"AI Path Hits:   {global_stats.ai_path_hits}", file=sys.stderr)
+            print(f"Average Latency: {avg_latency:.2f}ms", file=sys.stderr)
         
 if __name__ == "__main__":
     main()
