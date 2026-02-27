@@ -3,7 +3,7 @@
 
   <h1><code>symparse</code></h1>
   
-  <p><strong>The AI <code>jq</code> for unstructured text. From 100% LLM latency to 95% regex speeds in one run.</strong></p>
+  <p><strong>The AI <code>jq</code> for unstructured text. From 100% LLM latency to 95% fast-path speeds in one run.</strong></p>
 
   <p>
     <a href="https://github.com/Aftermath-Technologies-Ltd/symparse/actions"><img src="https://github.com/Aftermath-Technologies-Ltd/symparse/actions/workflows/ci.yml/badge.svg" alt="CI/CD Status"></a>
@@ -23,6 +23,8 @@
 You get the magical, unstructured data extraction of Large Language Models, with the raw performance and ReDoS-safety of sandboxed Python scripts wrapping `re2` on 95% of subsequent matched traffic.
 
 ## 🚀 Installation
+
+**Requires Python 3.10+**
 
 Install Symparse from PyPI:
 
@@ -102,6 +104,21 @@ tail -f /var/log/nginx/access.log | symparse run --schema access_schema.json --c
 
 ### CLI Options
 
+- **`symparse run --schema <file>`** — Run the extraction pipeline (required)
+- **`--compile`** — Cache a fast-path script on success
+- **`--model <name>`** — Override AI backend (e.g. `ollama/gemma3:1b`, `openai/gpt-4o`)
+- **`--embed`** — Use local embeddings for tier-2 cache matching
+- **`--sanitize`** — Strip control characters from stdin before AI Path
+- **`--max-tokens N`** — Cap tokens per LLM request (default: 4000)
+- **`--confidence N`** — Token logprob threshold (default: -2.0)
+- **`--force-ai`** — Bypass cache and force AI execution
+- **`--stats`** — Print performance stats when finished
+- **`--log-level`** — Set verbosity (`DEBUG`, `INFO`, `WARNING`, `ERROR`)
+- **`symparse cache list`** / **`cache clear`** — Manage the local compilation cache
+
+<details>
+<summary><strong>Full <code>--help</code> output</strong></summary>
+
 **Global flags** (before any subcommand):
 ```text
 usage: symparse [-h] [-v] [--version] [--log-level {DEBUG,INFO,WARNING,ERROR}]
@@ -153,6 +170,8 @@ positional arguments:
     clear        Wipe the local compilation directory
 ```
 
+</details>
+
 ## 🐳 Docker (Pre-Loaded Fast Start)
 
 To completely eliminate the "Does it work on my machine?" factor and remove the need to configure a local Ollama daemon, you can run the pre-packaged Symparse container.
@@ -197,7 +216,7 @@ See the `examples/` directory for the raw configurations.
 
 ## 🗄️ Cache Management
 
-Symparse creates deterministic sandbox scripts under `$HOME` or a `.symparse_cache` folder. You can manage these cache rules out of the box.
+Symparse creates deterministic sandbox scripts under `$HOME` or a `.symparse_cache` folder. Cache directory is created with `0o700` permissions for security. You can manage these cache rules out of the box.
 
 ```bash
 symparse cache list    # List all cached schema signatures and their compiled RE2 Regexes
@@ -262,7 +281,7 @@ Symparse is released under the MIT Open Source License. See the [LICENSE](LICENS
 ### ⚠️ Known Limitations & Risks
 
 * **Log Context Boundaries**: `symparse` assumes the input stream consists of discrete log records partitioned by line breaks (default for commands like `tail` or `grep`). Feeding dense prose paragraphs over stdin with multiple distinct extraction candidates per line may cause extraction overwrites.
-* **Complex Data Transformations**: The compiler engine constructs sandboxed Python scripts wrapping `re2` regex extractions (executed via restricted `exec()` with limited `__builtins__`). It is highly efficient for pattern destructuring, but cannot execute deep logical transformations (e.g., date-time conversions, mathematical sums) during the Fast Path stage. Use downstream piped tools like `jq` for manipulation.
+* **Complex Data Transformations**: The compiler engine constructs sandboxed Python scripts wrapping `re2` regex extractions (executed via restricted `exec()` with limited `__builtins__`). The restricted `exec()` uses a minimal builtins sandbox with no filesystem or network access. It is highly efficient for pattern destructuring, but cannot execute deep logical transformations (e.g., date-time conversions, mathematical sums) during the Fast Path stage. Use downstream piped tools like `jq` for manipulation.
 * **Nondeterminism**: The underlying LLM compiler may occasionally produce slightly different regex structures for identical schemas on cold starts. However, once a script enters the Fast Path cache, execution is fully deterministic. Symparse relies on rigorous JSON Schema gating and self-healing cache purges to guarantee that even jittery compilations are 100% schema-compliant before caching. To minimize cold-start variance, use `temperature=0.0` (default) and a consistent `--model`.
 * **Stdin Injection Security**: On a cache miss (AI Path), the raw text piped to `sys.stdin` is embedded within the LLM prompt. The rigid `response_format` JSON Schema wrapper constrains the model's output structure, which prevents arbitrary output escape. However, adversarial log lines could theoretically manipulate the model's extraction behavior. **Mitigations**: (1) Use `--sanitize` to strip control characters before the AI Path; (2) Use `--compile` to cache scripts and minimize AI Path exposure; (3) Pre-filter untrusted input with `grep` or `sed` before piping; (4) In high-security environments, run exclusively on the Fast Path after an initial trusted compilation pass.
 * **AI Path Rate Limiting**: In a broken-cache scenario with `tail -f`, rapid AI Path fallbacks could DDoS your LLM endpoint or rack up API bills. Symparse enforces a `--max-tokens 4000` guard per request (configurable via CLI) to cap token spend. For additional protection, use `--compile` to ensure the Fast Path is populated early.
