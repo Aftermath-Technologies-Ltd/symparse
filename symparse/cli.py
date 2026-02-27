@@ -3,11 +3,16 @@ import sys
 import json
 
 def parse_args():
-    parser = argparse.ArgumentParser(
-        description="Self-optimizing Unix pipeline tool with neurosymbolic parsing."
-    )
+    parser = argparse.ArgumentParser(description="Symparse: LLM to Fast-Path Regex Compiler pipeline")
     
+    try:
+        from importlib.metadata import version
+        __version__ = version("symparse")
+    except Exception:
+        __version__ = "unknown"
+        
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable debug logging")
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     
     subparsers = parser.add_subparsers(dest="command", required=True)
     
@@ -18,6 +23,7 @@ def parse_args():
     run_parser.add_argument("--compile", action="store_true", help="Compile a fast-path script on success")
     run_parser.add_argument("--force-ai", action="store_true", help="Bypass local cache and force AI execution")
     run_parser.add_argument("--confidence", type=float, default=None, help="Token logprob threshold (default: -2.0)")
+    run_parser.add_argument("--model", type=str, help="Override AI backend model (e.g. ollama/gemma3:1b, openai/gpt-4o)")
     run_parser.add_argument("--embed", action="store_true", help="Use local embeddings for tier-2 caching (requires sentence-transformers)")
 
     # "cache" command
@@ -75,7 +81,8 @@ def main():
                     force_ai=args.force_ai,
                     degradation_mode=mode,
                     confidence_threshold=getattr(args, "confidence", None),
-                    use_embeddings=getattr(args, "embed", False)
+                    use_embeddings=getattr(args, "embed", False),
+                    model=getattr(args, "model", None)
                 )
                 print(json.dumps(result))
                 sys.stdout.flush()
@@ -88,7 +95,7 @@ def main():
         if getattr(args, "stats", False):
             total_runs = global_stats.fast_path_hits + global_stats.ai_path_hits
             avg_latency = global_stats.total_latency_ms / total_runs if total_runs > 0 else 0.0
-            print(f"\n--- Symparse Run Stats ---", file=sys.stderr)
+            print(f"\n--- Symparse Run Stats (v{__version__}) ---", file=sys.stderr)
             print(f"Fast Path Hits: {global_stats.fast_path_hits}", file=sys.stderr)
             print(f"AI Path Hits:   {global_stats.ai_path_hits}", file=sys.stderr)
             print(f"Average Latency: {avg_latency:.2f}ms", file=sys.stderr)

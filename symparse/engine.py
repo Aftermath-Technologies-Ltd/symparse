@@ -36,13 +36,14 @@ def process_stream(
     max_retries: int = 3,
     degradation_mode: GracefulDegradationMode = GracefulDegradationMode.HALT,
     confidence_threshold: float = None,
-    use_embeddings: bool = False
+    use_embeddings: bool = False,
+    model: str = None
 ) -> Dict[str, Any]:
     """
     Entry point handling routing logic. 
     Routes Fast Paths vs AI Paths. ReDoS-proof regex zero copies strings in C++.
     """
-    ai_client = AIClient(logprob_threshold=confidence_threshold)
+    ai_client = AIClient(logprob_threshold=confidence_threshold, model=model)
     cache_manager = CacheManager()
     
     # Fast path logic

@@ -1,0 +1,23 @@
+{
+    "title": "Structured JSONL Error Parsing",
+    "description": "Used to extract specific keys rapidly from polluted JSON payloads without full generic decoding",
+    "type": "object",
+    "properties": {
+        "level": {
+            "type": "string"
+        },
+        "message": {
+            "type": "string"
+        },
+        "trace_id": {
+            "type": "string"
+        },
+        "latency_ms": {
+            "type": "integer"
+        }
+    },
+    "required": [
+        "level",
+        "trace_id"
+    ]
+}

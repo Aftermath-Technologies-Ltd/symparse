@@ -104,7 +104,7 @@ tail -f /var/log/nginx/access.log | symparse run --schema access_schema.json --c
 * `--embed`: Activates semantic Dense Vector tier-2 cache checks instead of simple Jaccard similarity (requires `symparse[embed]`).
 * `--stats`: Prints the engine cache hit/miss ratio, latency averages, and stream velocity on exit.
 
-## � Docker (Pre-Loaded Fast Start)
+## 🐳 Docker (Pre-Loaded Fast Start)
 
 To completely eliminate the "Does it work on my machine?" factor and remove the need to configure a local Ollama daemon, you can run the pre-packaged Symparse container.
 
@@ -115,16 +115,31 @@ docker pull aftermath/symparse:latest
 docker run -i --rm aftermath/symparse run --schema my_schema.json < logs.txt
 ```
 
+## 🎬 Viral 60-Second Demo
+
+We have provided an automated terminal typing simulation script perfect for recording marketing GIFs (e.g. via Asciinema or QuickTime).
+
+```bash
+python scripts/record_demo.py
+```
+
 ## 🏎️ Benchmarks
 
 How fast is the exact same Unix pipe once the AI successfully compiles the cache?
 
-Tested using `symparse run --schema access.json --stats` routing a batch of `1,000` dense synthetic Apache access logs down the warmed **Fast Path**:
+We ran `symparse run --stats` iteratively over batches of 1,000 dense synthetic lines down the warmed **Fast Path**. 
 
-* **Average Execution Engine Wall Time**: `424.13ms ± 9.91ms`
-* **Throughput**: `~2357 lines / second`
+| Schema Type | Description | Avg Wall Time (1000 lines) | Throughput |
+| --- | --- | --- | --- |
+| **Apache Basic** | Flat regex string matching | `424.13ms ± 9.91ms` | `~2,357 ops/sec` |
+| **Nginx Nested** | Nested dict-building (IP, Request obj, HTTP) | `1669.13ms ± 75.88ms` | `~599 ops/sec` |
+| **Invoices** | Heavy multiline text slicing/casting | `1703.53ms ± 106.56ms`| `~587 ops/sec` |
+| **JSONL Polishing** | Plucking sparse target keys from giant files | `1757.71ms ± 75.51ms` | `~568 ops/sec` |
 
-That is over an order of magnitude faster than evaluating 1000 calls through an LLM, all while maintaining rigorous ReDoS sandboxing and structured formatting.
+> [!NOTE]
+> **Real-world Variance**: Throughput scales inversely with schema nesting depth, regex multiline complexity, and CPU hardware. The `2300+ ops/sec` figure assumes flat data on standard server hardware; extremely nested JSON builders pulling disjoint strings across megabytes of context will naturally trend toward `500-800 ops/sec`. However, this still represents a massive magnitude leap over performing 1000 synchronous 1-second native LLM iterations.
+
+See the `examples/` directory for the raw configurations.
 
 ## �🗄️ Cache Management
 

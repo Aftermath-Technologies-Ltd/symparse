@@ -1,7 +1,13 @@
 import json
 import logging
 import os
-from openai import OpenAI
+import configparser
+from pathlib import Path
+from litellm import completion
+import litellm
+
+# Suppress annoying debug output from litellm if any
+litellm.suppress_debug_info = True
 
 logger = logging.getLogger(__name__)
 
@@ -11,36 +17,40 @@ class ConfidenceDegradationError(Exception):
 
 class AIClient:
     def __init__(self, base_url: str = None, api_key: str = None, model: str = None, logprob_threshold: float = None):
-        # Default to local containerized endpoints if not provided
-        self.base_url = base_url or os.getenv("SYMPARSE_AI_BASE_URL", "http://localhost:11434/v1")
-        self.api_key = api_key or os.getenv("SYMPARSE_AI_API_KEY", "ollama")
-        self.model = model or os.getenv("SYMPARSE_AI_MODEL", "llama3")
+        config = configparser.ConfigParser()
+        config_path = Path.home() / ".symparserc"
+        if config_path.exists():
+            config.read(config_path)
+            
+        ai_config = config["AI"] if "AI" in config else {}
+            
+        # Precedence: Init Args -> Env Vars -> Config File -> Fallback Default
+        self.base_url = base_url or os.getenv("SYMPARSE_AI_BASE_URL") or ai_config.get("base_url")
+        self.api_key = api_key or os.getenv("SYMPARSE_AI_API_KEY") or ai_config.get("api_key")
         
-        # Determine logprob threshold from init arg, then env var, then fallback to -2.0
+        # For litellm, we specify providers in the model name (e.g., openai/gpt-4o, ollama/gemma3:1b)
+        # We assume if someone was relying on old fallback it meant an openai compatible proxy
+        self.model = model or os.getenv("SYMPARSE_AI_MODEL") or ai_config.get("model", "ollama/gemma3:1b")
+        
         if logprob_threshold is not None:
             self.logprob_threshold = logprob_threshold
         elif "SYMPARSE_CONFIDENCE_THRESHOLD" in os.environ:
             self.logprob_threshold = float(os.environ["SYMPARSE_CONFIDENCE_THRESHOLD"])
         else:
             self.logprob_threshold = -2.0
-        
-        self.client = OpenAI(
-            base_url=self.base_url,
-            api_key=self.api_key
-        )
 
     def extract(self, text: str, schema: dict) -> dict:
         """
         Handles LLM extraction enforcing structured generation.
         Implements a Confidence Egress Gate using token logprobs.
         """
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=[
+        kwargs = {
+            "model": self.model,
+            "messages": [
                 {"role": "system", "content": "You are a perfectly rigid data extraction tool. Extract ONLY matching data into the required JSON schema structure."},
                 {"role": "user", "content": f"Extract structured data from the following text:\n\n{text}"}
             ],
-            response_format={
+            "response_format": {
                 "type": "json_schema",
                 "json_schema": {
                     "name": "extraction_schema",
@@ -48,17 +58,29 @@ class AIClient:
                     "strict": True
                 }
             },
-            temperature=0.0,
-            logprobs=True,
-            top_logprobs=1
-        )
+            "temperature": 0.0,
+            "logprobs": True,
+            "top_logprobs": 1
+        }
+        
+        if self.base_url:
+            kwargs["api_base"] = self.base_url
+        if self.api_key:
+            kwargs["api_key"] = self.api_key
+            
+        try:
+            response = completion(**kwargs)
+        except Exception as e:
+            logger.error(f"LiteLLM backend failure: {e}")
+            raise
         
         choice = response.choices[0]
-        raw_json = choice.message.content
+        # Some litellm providers might return dicts differently, fallback safely
+        raw_json = choice.message.content if hasattr(choice.message, 'content') else choice.get("message", {}).get("content", "{}")
         
         # Confidence Egress Gate
-        if choice.logprobs and choice.logprobs.content:
-            logprobs = [token.logprob for token in choice.logprobs.content]
+        if hasattr(choice, 'logprobs') and choice.logprobs and hasattr(choice.logprobs, 'content') and choice.logprobs.content:
+            logprobs = [token.logprob for token in choice.logprobs.content if hasattr(token, 'logprob')]
             if logprobs:
                 avg_logprob = sum(logprobs) / len(logprobs)
                 

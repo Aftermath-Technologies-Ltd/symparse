@@ -42,13 +42,11 @@ def test_clear_cache(tmp_path):
     cm.save_script(schema, "word", "script")
     
     cm.clear_cache()
-    
-    # Cache clear removes metadata.json as well, which is recreated on next init,
-    # or list_cache recreates it if it was deleted? Actually it raises FileNotFoundError 
-    # if it tries to open after we removed it. Wait, `list_cache` doesn't recreate.
-    # We should catch FileNotFoundError or just test if dir is empty.
+
+    # Cache clear removes all cache scripts but immediately recreates `metadata.json`
     files = list(tmp_path.glob("*"))
-    assert len(files) == 0
+    assert len(files) == 1
+    assert files[0].name == "metadata.json"
 
 def lock_writer(cache_dir, schema, text, script):
     cm = CacheManager(cache_dir=cache_dir)

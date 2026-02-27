@@ -1,0 +1,28 @@
+{
+    "title": "Unstructured Enterprise Invoice",
+    "type": "object",
+    "properties": {
+        "invoice_id": {
+            "type": "string"
+        },
+        "vendor": {
+            "type": "string"
+        },
+        "due_date": {
+            "type": "string"
+        },
+        "items": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "total": {
+            "type": "number"
+        }
+    },
+    "required": [
+        "invoice_id",
+        "total"
+    ]
+}

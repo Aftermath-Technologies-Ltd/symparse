@@ -1,0 +1,46 @@
+{
+    "title": "Nginx Nested Access Log",
+    "type": "object",
+    "properties": {
+        "ip": {
+            "type": "string"
+        },
+        "timestamp": {
+            "type": "string"
+        },
+        "request": {
+            "type": "object",
+            "properties": {
+                "method": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                },
+                "protocol": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "method",
+                "url",
+                "protocol"
+            ]
+        },
+        "status": {
+            "type": "integer"
+        },
+        "bytes": {
+            "type": "integer"
+        },
+        "user_agent": {
+            "type": "string"
+        }
+    },
+    "required": [
+        "ip",
+        "timestamp",
+        "request",
+        "status"
+    ]
+}
