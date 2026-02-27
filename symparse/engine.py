@@ -73,6 +73,13 @@ def process_stream(
 
     # AI Path (Cold Start)
     logger.info("Routing through AI Path (Cold Start)")
+    
+    # Token budget warning before sending to LLM
+    from symparse.utils import token_budget_warning
+    budget_warn = token_budget_warning(input_text, model=model)
+    if budget_warn:
+        logger.warning(budget_warn)
+    
     last_error_message = ""
     prompt_text = input_text
     

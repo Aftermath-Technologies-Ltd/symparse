@@ -16,6 +16,7 @@ class CacheManager:
         # Enforce highly secure user-only cache permissions to prevent exposing logs globally
         self.cache_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
         self._init_metadata()
+        self._ensure_gitignore()
         self._encoder = None
 
     def _init_metadata(self):
@@ -29,6 +30,28 @@ class CacheManager:
                 if os.path.getsize(meta_file) == 0:
                     f.write(json.dumps({"schemas": {}}))
                 portalocker.unlock(f)
+
+    def _ensure_gitignore(self):
+        """Auto-add .symparse_cache to the project .gitignore if one exists nearby.
+
+        This implements 'Smart Ignore' so developers do not accidentally commit
+        cached extraction scripts or metadata into version control.
+        """
+        try:
+            # Walk up from cache_dir looking for a .gitignore in a plausible project root
+            for candidate in [Path.cwd(), Path.home()]:
+                gitignore_path = candidate / ".gitignore"
+                if not gitignore_path.exists():
+                    continue
+                content = gitignore_path.read_text(encoding="utf-8", errors="replace")
+                cache_pattern = ".symparse_cache"
+                if cache_pattern not in content:
+                    with open(gitignore_path, "a") as f:
+                        f.write(f"\n# Symparse extraction cache (auto-added)\n{cache_pattern}/\n")
+                    logger.debug(f"Added {cache_pattern}/ to {gitignore_path}")
+                break  # Only patch the first .gitignore found
+        except (OSError, PermissionError):
+            pass  # Best-effort; never fail on gitignore management
 
     def _hash_schema(self, schema_dict: dict) -> str:
         """Tier 1: Deterministic exact-match hashing."""

@@ -68,6 +68,7 @@ def main():
             
         import os
         from symparse.engine import process_stream, EngineFailure, GracefulDegradationMode, global_stats
+        from symparse.utils import is_binary_line, estimate_tokens
         
         try:
             with open(args.schema, 'r') as f:
@@ -79,11 +80,21 @@ def main():
         degradation_mode = os.getenv("SYMPARSE_DEGRADATION_MODE", "halt").lower()
         mode = GracefulDegradationMode.PASSTHROUGH if degradation_mode == "passthrough" else GracefulDegradationMode.HALT
             
+        total_input_chars = 0
+        skipped_binary_lines = 0
         try:
             for line in sys.stdin:
                 line = line.strip()
                 if not line:
                     continue
+                if is_binary_line(line):
+                    skipped_binary_lines += 1
+                    logging.getLogger(__name__).warning(
+                        f"Skipped binary/null-byte line (line {skipped_binary_lines}). "
+                        "Pipe text-only input or pre-filter with 'strings' or 'grep -a'."
+                    )
+                    continue
+                total_input_chars += len(line)
                 result = process_stream(
                     line, 
                     schema_dict, 
@@ -107,6 +118,7 @@ def main():
         if getattr(args, "stats", False):
             total_runs = global_stats.fast_path_hits + global_stats.ai_path_hits
             avg_latency = global_stats.total_latency_ms / total_runs if total_runs > 0 else 0.0
+            estimated_tokens = estimate_tokens("x" * total_input_chars) if total_input_chars else 0
             
             try:
                 from importlib.metadata import version
@@ -118,6 +130,9 @@ def main():
             print(f"Fast Path Hits: {global_stats.fast_path_hits}", file=sys.stderr)
             print(f"AI Path Hits:   {global_stats.ai_path_hits}", file=sys.stderr)
             print(f"Average Latency: {avg_latency:.2f}ms", file=sys.stderr)
+            print(f"Total Input:    {total_input_chars:,} chars (~{estimated_tokens:,} tokens)", file=sys.stderr)
+            if skipped_binary_lines:
+                print(f"Binary Skipped: {skipped_binary_lines} lines", file=sys.stderr)
         
 if __name__ == "__main__":
     main()
