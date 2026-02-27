@@ -1,0 +1,114 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="100%" height="100%">
+  <defs>
+    <!-- Gradients -->
+    <linearGradient id="primaryGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4F46E5" />
+      <stop offset="100%" stop-color="#7C3AED" />
+    </linearGradient>
+    <linearGradient id="successGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10B981" />
+      <stop offset="100%" stop-color="#059669" />
+    </linearGradient>
+    <linearGradient id="aiGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F59E0B" />
+      <stop offset="100%" stop-color="#D97706" />
+    </linearGradient>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1E293B" />
+      <stop offset="100%" stop-color="#0F172A" />
+    </linearGradient>
+    
+    <!-- Shadows -->
+    <filter id="dropShadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="8" stdDeviation="6" flood-color="#000000" flood-opacity="0.25"/>
+    </filter>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="4" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+
+    <!-- Arrowhead -->
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#94A3B8" />
+    </marker>
+    <marker id="arrowSuccess" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#10B981" />
+    </marker>
+    <marker id="arrowAI" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#F59E0B" />
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="800" height="450" rx="16" fill="url(#bgGrad)" />
+  
+  <!-- Title -->
+  <text x="400" y="45" font-family="'Inter', -apple-system, sans-serif" font-size="20" font-weight="600" fill="#E2E8F0" text-anchor="middle" letter-spacing="1">SYMPARSE NEUROSYMBOLIC PIPELINE</text>
+
+  <!-- Input Node -->
+  <g transform="translate(40, 185)" filter="url(#dropShadow)">
+    <rect width="120" height="60" rx="8" fill="#334155" stroke="#475569" stroke-width="2"/>
+    <text x="60" y="28" font-family="monospace" font-size="14" font-weight="bold" fill="#F8FAFC" text-anchor="middle">stdin</text>
+    <text x="60" y="46" font-family="sans-serif" font-size="11" fill="#94A3B8" text-anchor="middle">Unstructured Text</text>
+  </g>
+
+  <!-- Router Node -->
+  <g transform="translate(220, 185)" filter="url(#dropShadow)">
+    <rect width="130" height="60" rx="30" fill="url(#primaryGrad)" />
+    <text x="65" y="35" font-family="'Inter', sans-serif" font-size="14" font-weight="bold" fill="#FFFFFF" text-anchor="middle">Cache Router</text>
+  </g>
+
+  <!-- Connections from Input to Router -->
+  <path d="M 160 215 L 210 215" stroke="#94A3B8" stroke-width="3" fill="none" marker-end="url(#arrow)" />
+
+  <!-- Fast Path (Top) -->
+  <g transform="translate(420, 90)" filter="url(#dropShadow)">
+    <rect width="150" height="60" rx="8" fill="url(#successGrad)" />
+    <text x="75" y="26" font-family="'Inter', sans-serif" font-size="14" font-weight="bold" fill="#FFFFFF" text-anchor="middle">Fast Path</text>
+    <text x="75" y="44" font-family="sans-serif" font-size="11" font-weight="600" fill="#D1FAE5" text-anchor="middle">Regex / RE2 Cache</text>
+  </g>
+
+  <!-- Connection Router to Fast Path -->
+  <path d="M 330 200 C 370 200, 370 120, 410 120" stroke="#10B981" stroke-width="3" fill="none" stroke-dasharray="6,4" marker-end="url(#arrowSuccess)" />
+  <text x="375" y="145" font-family="sans-serif" font-size="11" font-weight="bold" fill="#10B981" text-anchor="middle">Cache Hit</text>
+
+  <!-- AI Path (Bottom) -->
+  <g transform="translate(420, 280)" filter="url(#dropShadow)">
+    <rect width="150" height="60" rx="8" fill="url(#aiGrad)" />
+    <text x="75" y="26" font-family="'Inter', sans-serif" font-size="14" font-weight="bold" fill="#FFFFFF" text-anchor="middle">AI Path</text>
+    <text x="75" y="44" font-family="sans-serif" font-size="11" font-weight="600" fill="#FEF3C7" text-anchor="middle">LLM Extraction</text>
+  </g>
+
+  <!-- Connection Router to AI Path -->
+  <path d="M 330 230 C 370 230, 370 310, 410 310" stroke="#F59E0B" stroke-width="3" fill="none" marker-end="url(#arrowAI)" />
+  <text x="375" y="285" font-family="sans-serif" font-size="11" font-weight="bold" fill="#F59E0B" text-anchor="middle">Cold Start</text>
+
+  <!-- Output Node -->
+  <g transform="translate(640, 185)" filter="url(#dropShadow)">
+    <rect width="120" height="60" rx="8" fill="#334155" stroke="#475569" stroke-width="2"/>
+    <text x="60" y="28" font-family="monospace" font-size="14" font-weight="bold" fill="#F8FAFC" text-anchor="middle">stdout</text>
+    <text x="60" y="46" font-family="sans-serif" font-size="11" fill="#94A3B8" text-anchor="middle">Structured JSON</text>
+  </g>
+
+  <!-- Connection Fast Path to Output -->
+  <path d="M 570 120 C 610 120, 610 200, 630 200" stroke="#10B981" stroke-width="3" fill="none" marker-end="url(#arrowSuccess)" />
+
+  <!-- Connection AI Path to Output -->
+  <path d="M 570 310 C 610 310, 610 230, 630 230" stroke="#F59E0B" stroke-width="3" fill="none" marker-end="url(#arrowAI)" />
+
+  <!-- Auto Compiler Feedback Loop -->
+  <path d="M 495 270 L 495 160" stroke="#6366F1" stroke-width="2" fill="none" stroke-dasharray="4,4" marker-end="url(#arrow)" />
+  <rect x="425" y="195" width="140" height="40" rx="4" fill="#1E1B4B" stroke="#6366F1" stroke-width="1"/>
+  <text x="495" y="214" font-family="'Inter', sans-serif" font-size="11" font-weight="bold" fill="#A5B4FC" text-anchor="middle">Auto-Compiler</text>
+  <text x="495" y="228" font-family="sans-serif" font-size="9" fill="#818CF8" text-anchor="middle">Generates Regex Cache</text>
+
+  <!-- Schema Requirement -->
+  <g transform="translate(40, 280)">
+    <rect width="120" height="40" rx="4" fill="#1E293B" stroke="#94A3B8" stroke-dasharray="4,2"/>
+    <text x="60" y="20" font-family="monospace" font-size="11" fill="#CBD5E1" text-anchor="middle">schema.json</text>
+    <text x="60" y="32" font-family="sans-serif" font-size="9" fill="#94A3B8" text-anchor="middle">Strict Enforcement</text>
+    <!-- Line to Router -->
+    <path d="M 100 280 L 160 240 L 220 225" stroke="#94A3B8" stroke-width="2" stroke-dasharray="2,2" fill="none" />
+  </g>
+
+</svg>
