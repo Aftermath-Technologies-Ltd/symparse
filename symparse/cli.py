@@ -43,10 +43,31 @@ def main():
              print("Error: Empty stdin stream.", file=sys.stderr)
              sys.exit(1)
              
-        # Placeholder for routing logic
-        print(f"Schema: {args.schema}, Compile: {args.compile}, Force AI: {args.force_ai}")
-        print(f"Input: {input_data[:50]}...")
-        # engine.process_stream(input_data, schema_dict, compile=args.compile)
+        import os
+        from symparse.engine import process_stream, EngineFailure, GracefulDegradationMode
+        
+        try:
+            with open(args.schema, 'r') as f:
+                schema_dict = json.load(f)
+        except Exception as e:
+            print(f"Error reading schema file: {e}", file=sys.stderr)
+            sys.exit(1)
+            
+        degradation_mode = os.getenv("SYMPARSE_DEGRADATION_MODE", "halt").lower()
+        mode = GracefulDegradationMode.PASSTHROUGH if degradation_mode == "passthrough" else GracefulDegradationMode.HALT
+            
+        try:
+            result = process_stream(
+                input_data, 
+                schema_dict, 
+                compile=args.compile,
+                force_ai=args.force_ai,
+                degradation_mode=mode
+            )
+            print(json.dumps(result, indent=2))
+        except EngineFailure as e:
+            print(f"Engine Failure: {e}", file=sys.stderr)
+            sys.exit(1)
         
 if __name__ == "__main__":
     main()
