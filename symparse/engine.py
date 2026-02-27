@@ -37,14 +37,21 @@ def process_stream(
     degradation_mode: GracefulDegradationMode = GracefulDegradationMode.HALT,
     confidence_threshold: float = None,
     use_embeddings: bool = False,
-    model: str = None
+    model: str = None,
+    sanitize: bool = False,
+    max_tokens: int = 4000
 ) -> Dict[str, Any]:
     """
-    Entry point handling routing logic. 
-    Routes Fast Paths vs AI Paths. ReDoS-proof regex zero copies strings in C++.
+    Entry point handling routing logic.
+    Routes Fast Paths (sandboxed re2 scripts) vs AI Paths (LLM extraction).
     """
-    ai_client = AIClient(logprob_threshold=confidence_threshold, model=model)
+    ai_client = AIClient(logprob_threshold=confidence_threshold, model=model, max_tokens=max_tokens)
     cache_manager = CacheManager()
+    
+    # Optional input sanitization to mitigate prompt injection
+    if sanitize:
+        import re
+        input_text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', input_text)
     
     # Fast path logic
     import time

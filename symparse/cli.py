@@ -14,6 +14,8 @@ def parse_args():
         
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable debug logging")
     parser.add_argument("--version", action="version", version=f"%(prog)s {v}")
+    parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR"], default=None,
+                        help="Set logging verbosity (default: ERROR, or DEBUG with -v)")
     
     subparsers = parser.add_subparsers(dest="command", required=True)
     
@@ -26,6 +28,8 @@ def parse_args():
     run_parser.add_argument("--confidence", type=float, default=None, help="Token logprob threshold (default: -2.0)")
     run_parser.add_argument("--model", type=str, help="Override AI backend model (e.g. ollama/gemma3:1b, openai/gpt-4o)")
     run_parser.add_argument("--embed", action="store_true", help="Use local embeddings for tier-2 caching (requires sentence-transformers)")
+    run_parser.add_argument("--sanitize", action="store_true", help="Strip control characters from stdin before AI Path")
+    run_parser.add_argument("--max-tokens", type=int, default=4000, help="Max tokens per LLM request (default: 4000)")
 
     # "cache" command
     cache_parser = subparsers.add_parser("cache", help="Manage the local cache")
@@ -38,7 +42,13 @@ def parse_args():
 def main():
     args = parse_args()
     
-    log_level = logging.DEBUG if getattr(args, "verbose", False) else logging.ERROR
+    log_level_str = getattr(args, "log_level", None)
+    if log_level_str:
+        log_level = getattr(logging, log_level_str)
+    elif getattr(args, "verbose", False):
+        log_level = logging.DEBUG
+    else:
+        log_level = logging.ERROR
     logging.basicConfig(level=log_level, format="%(levelname)s: %(message)s")
     
     if args.command == "cache":
@@ -82,7 +92,9 @@ def main():
                     degradation_mode=mode,
                     confidence_threshold=getattr(args, "confidence", None),
                     use_embeddings=getattr(args, "embed", False),
-                    model=getattr(args, "model", None)
+                    model=getattr(args, "model", None),
+                    sanitize=getattr(args, "sanitize", False),
+                    max_tokens=getattr(args, "max_tokens", 4000)
                 )
                 print(json.dumps(result))
                 sys.stdout.flush()

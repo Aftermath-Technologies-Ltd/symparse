@@ -16,7 +16,7 @@ class ConfidenceDegradationError(Exception):
     pass
 
 class AIClient:
-    def __init__(self, base_url: str = None, api_key: str = None, model: str = None, logprob_threshold: float = None):
+    def __init__(self, base_url: str = None, api_key: str = None, model: str = None, logprob_threshold: float = None, max_tokens: int = 4000):
         config = configparser.ConfigParser()
         config_path = Path.home() / ".symparserc"
         if config_path.exists():
@@ -38,6 +38,8 @@ class AIClient:
             self.logprob_threshold = float(os.environ["SYMPARSE_CONFIDENCE_THRESHOLD"])
         else:
             self.logprob_threshold = -2.0
+        
+        self.max_tokens = max_tokens
 
     def extract(self, text: str, schema: dict) -> dict:
         """
@@ -59,6 +61,7 @@ class AIClient:
                 }
             },
             "temperature": 0.0,
+            "max_tokens": self.max_tokens,
             "logprobs": True,
             "top_logprobs": 1
         }

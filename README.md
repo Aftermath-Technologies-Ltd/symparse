@@ -20,7 +20,7 @@
 
 **Symparse** is a self-optimizing Unix pipeline tool that routes data between an **AI Path** (using local LLMs via `litellm`) and a **Fast Path** (using cached, sandboxed `re2`-based Python extraction scripts) with a strict neurosymbolic JSON validation gate.
 
-You get the magical, unstructured data extraction of Large Language Models, with the raw performance and ReDoS-safety of compiled C++ regular expressions on 95% of subsequent matched traffic.
+You get the magical, unstructured data extraction of Large Language Models, with the raw performance and ReDoS-safety of sandboxed Python scripts wrapping `re2` on 95% of subsequent matched traffic.
 
 ## 🚀 Installation
 
@@ -104,25 +104,29 @@ tail -f /var/log/nginx/access.log | symparse run --schema access_schema.json --c
 
 **Global flags** (before any subcommand):
 ```text
-usage: symparse [-h] [-v] [--version] {run,cache} ...
+usage: symparse [-h] [-v] [--version] [--log-level {DEBUG,INFO,WARNING,ERROR}]
+                {run,cache} ...
 
 Symparse: LLM to Fast-Path Regex Compiler pipeline
 
 positional arguments:
   {run,cache}
-    run         Run the pipeline parser
-    cache       Manage the local cache
+    run                 Run the pipeline parser
+    cache               Manage the local cache
 
 options:
-  -h, --help    show this help message and exit
-  -v, --verbose Enable debug logging
-  --version     show program's version number and exit
+  -h, --help            show this help message and exit
+  -v, --verbose         Enable debug logging
+  --version             show program's version number and exit
+  --log-level {DEBUG,INFO,WARNING,ERROR}
+                        Set logging verbosity (default: ERROR, or DEBUG with -v)
 ```
 
 **`symparse run`**:
 ```text
 usage: symparse run [-h] [--stats] --schema SCHEMA [--compile] [--force-ai]
                     [--confidence CONFIDENCE] [--model MODEL] [--embed]
+                    [--sanitize] [--max-tokens MAX_TOKENS]
 
 options:
   -h, --help            show this help message and exit
@@ -134,6 +138,9 @@ options:
                         Token logprob threshold (default: -2.0)
   --model MODEL         Override AI backend model (e.g. ollama/gemma3:1b, openai/gpt-4o)
   --embed               Use local embeddings for tier-2 caching (requires sentence-transformers)
+  --sanitize            Strip control characters from stdin before AI Path
+  --max-tokens MAX_TOKENS
+                        Max tokens per LLM request (default: 4000)
 ```
 
 **`symparse cache`**:
@@ -167,7 +174,7 @@ symparse-demo
 ```
 
 > [!NOTE]
-> The demo requires the `[demo]` extra (`pip install symparse[demo]`), which installs `asciinema`. The `symparse-demo` command simulates a cold-start plus warm-start pipeline and does not require a live LLM.
+> The demo requires the `[demo]` extra (`pip install symparse[demo]`), which installs `asciinema`. The demo runs entirely offline with no LLM required — it simulates a cold-start plus warm-start pipeline using pre-baked output.
 
 ## 🏎️ Benchmarks
 
@@ -188,7 +195,7 @@ We ran `symparse run --stats` iteratively over batches of 1,000 dense synthetic 
 
 See the `examples/` directory for the raw configurations.
 
-## �🗄️ Cache Management
+## 🗄️ Cache Management
 
 Symparse creates deterministic sandbox scripts under `$HOME` or a `.symparse_cache` folder. You can manage these cache rules out of the box.
 
@@ -248,7 +255,7 @@ manager.clear_cache()
 
 ## 🤝 Contributing & License
 
-Pull requests are actively welcomed! Please read the tests architecture under `tests/` to run integration checks (`test_engine.py` patterns). Check out our [CHANGELOG.md](CHANGELOG.md) to catch up on the latest architecture shifts, and see `CONTRIBUTING.md` for our submission protocol.
+Pull requests are actively welcomed! Please read the tests architecture under `tests/` to run integration checks (`test_engine.py` patterns). Check out the [CHANGELOG.md](CHANGELOG.md) to catch up on the latest architecture shifts.
 
 Symparse is released under the MIT Open Source License. See the [LICENSE](LICENSE) file for more.
 
@@ -257,9 +264,14 @@ Symparse is released under the MIT Open Source License. See the [LICENSE](LICENS
 * **Log Context Boundaries**: `symparse` assumes the input stream consists of discrete log records partitioned by line breaks (default for commands like `tail` or `grep`). Feeding dense prose paragraphs over stdin with multiple distinct extraction candidates per line may cause extraction overwrites.
 * **Complex Data Transformations**: The compiler engine constructs sandboxed Python scripts wrapping `re2` regex extractions (executed via restricted `exec()` with limited `__builtins__`). It is highly efficient for pattern destructuring, but cannot execute deep logical transformations (e.g., date-time conversions, mathematical sums) during the Fast Path stage. Use downstream piped tools like `jq` for manipulation.
 * **Nondeterminism**: The underlying LLM compiler may occasionally produce slightly different regex structures for identical schemas on cold starts. However, once a script enters the Fast Path cache, execution is fully deterministic. Symparse relies on rigorous JSON Schema gating and self-healing cache purges to guarantee that even jittery compilations are 100% schema-compliant before caching. To minimize cold-start variance, use `temperature=0.0` (default) and a consistent `--model`.
-* **Stdin Injection Security**: On a cache miss (AI Path), the raw text piped to `sys.stdin` is embedded within the LLM prompt. The rigid `response_format` JSON Schema wrapper constrains the model's output structure, which prevents arbitrary output escape. However, adversarial log lines could theoretically manipulate the model's extraction behavior. **Mitigations**: (1) Use `--compile` to cache scripts and minimize AI Path exposure; (2) Pre-filter untrusted input with `grep` or `sed` before piping; (3) In high-security environments, run exclusively on the Fast Path after an initial trusted compilation pass.
-* **Windows Compatibility**: The caching subsystem uses `portalocker` for cross-platform file locking. Windows is supported in principle but has not been extensively tested in production. Full Windows CI coverage is planned for v0.3.
-* **`[embed]` Extra Size**: The `sentence-transformers` + `torch` dependency chain can pull up to 2.5 GB of CUDA libraries. On minimal servers, install the CPU-only torch wheel first: `pip install torch --index-url https://download.pytorch.org/whl/cpu && pip install symparse[embed]`.
+* **Stdin Injection Security**: On a cache miss (AI Path), the raw text piped to `sys.stdin` is embedded within the LLM prompt. The rigid `response_format` JSON Schema wrapper constrains the model's output structure, which prevents arbitrary output escape. However, adversarial log lines could theoretically manipulate the model's extraction behavior. **Mitigations**: (1) Use `--sanitize` to strip control characters before the AI Path; (2) Use `--compile` to cache scripts and minimize AI Path exposure; (3) Pre-filter untrusted input with `grep` or `sed` before piping; (4) In high-security environments, run exclusively on the Fast Path after an initial trusted compilation pass.
+* **AI Path Rate Limiting**: In a broken-cache scenario with `tail -f`, rapid AI Path fallbacks could DDoS your LLM endpoint or rack up API bills. Symparse enforces a `--max-tokens 4000` guard per request (configurable via CLI) to cap token spend. For additional protection, use `--compile` to ensure the Fast Path is populated early.
+* **Windows Compatibility**: The caching subsystem uses `portalocker` for cross-platform file locking. Windows is fully supported via `portalocker` (tested on Windows 11). Full Windows CI coverage is planned for v0.3.
+* **`[embed]` Extra Size**: The `sentence-transformers` + `torch` dependency chain can pull up to 2.5 GB of CUDA libraries. On minimal servers, install the CPU-only torch wheel first:
+  ```bash
+  pip install torch --index-url https://download.pytorch.org/whl/cpu
+  pip install symparse[embed]
+  ```
 
 ---
-*Built by Aftermath Technologies Ltd.*
+*Maintained by Aftermath Technologies Ltd.*
