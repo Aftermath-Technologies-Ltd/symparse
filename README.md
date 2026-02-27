@@ -33,3 +33,17 @@ You can list compiled extraction scripts or clear the compilation cache.
 symparse cache list
 symparse cache clear
 ```
+
+## Python API
+Symparse provides a core Internal Python API which you can use directly.
+
+### Validator
+```python
+from symparse.validator import enforce_schema, SchemaViolationError
+
+schema = {"type": "object", "properties": {"status": {"type": "string"}}, "required": ["status"]}
+data = {"status": "success"}
+
+# Returns True or raises SchemaViolationError
+enforce_schema(data, schema)
+```
