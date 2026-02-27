@@ -7,8 +7,6 @@
 
   <p>
     <a href="https://github.com/Aftermath-Technologies-Ltd/symparse/actions"><img src="https://github.com/Aftermath-Technologies-Ltd/symparse/actions/workflows/ci.yml/badge.svg" alt="CI/CD Status"></a>
-    <a href="https://pypi.org/project/symparse/"><img src="https://img.shields.io/pypi/v/symparse" alt="PyPI Version"></a>
-    <a href="https://hub.docker.com/r/aftermath/symparse"><img src="https://img.shields.io/docker/pulls/aftermath/symparse" alt="Docker Pulls"></a>
     <a href="https://github.com/Aftermath-Technologies-Ltd/symparse/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Aftermath-Technologies-Ltd/symparse" alt="License: MIT"></a>
     <img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python 3.10+">
   </p>
